@@ -169,9 +169,10 @@ Main competitive risk: Trident or LiteSVM adding presets. Research/03 found no a
 
 ## 5. Top 5 target repositories to test first
 
-Every predicted break below comes from research/03 code reading and is **predicted**, not run.
-Commits are the ones research/03 read. Licenses and build requirements (Anchor version,
-platform-tools) are **unverified** for all five.
+The original predictions came from research/03 code reading. On 22 Oct, program-examples,
+Sablier Merkle Instant and Train HTLC were built unchanged and run locally; results and exact
+reproduction commands are in README. Their licenses and locked builds were checked. Predictions
+for the other targets remain unverified.
 
 Before these, the golden target is `targets/escrow`. The runner must reproduce F1 and F2 there
 first.
@@ -179,10 +180,10 @@ first.
 | # | Repository (commit) | Flow | Scenario expected to hit | Why it is in the top 5 |
 |---|---|---|---|---|
 | 1 | [solana-foundation/program-examples](https://github.com/solana-foundation/program-examples) `tokens/escrow/anchor` (`de09019`) | `make_offer` → `take_offer` / `refund_offer` | TF-02 (both exits revert at `close_account`), TF-01 | Canonical and widely copied. Same shape as the golden target. Best public demo |
-| 2 | [sablier-labs/solsab](https://github.com/sablier-labs/solsab) (`e060b26`) | create → withdraw → cancel | TF-01 (stores `deposit_amount` from arguments), PD-01, PAUSE-01 | Custody over time; the shortfall lands on the last withdraw or cancel |
+| 2 | [sablier-labs/solsab](https://github.com/sablier-labs/solsab) (`e060b26`) | Merkle campaign funding → claim / clawback | **Observed:** nominal 200 bps funding underfunds both exits; fee-aware gross-up makes both pass net expectations. PD drains and pauses are detected | Non-escrow airdrop flow. Lockup streams remain untested |
 | 3 | [1inch/solana-fusion-protocol](https://github.com/1inch/solana-fusion-protocol) (`2aab60c`) | create → fill → cancel | TF-02 on the final-fill close, TF-01 | Known team; escrow-shaped |
 | 4 | [solana-foundation/vault](https://github.com/solana-foundation/vault) `async_vault` (`c359962`) | create → deposit → claim → redeem | TF-03 (only the current-epoch fee is checked) | Tests the dormant-switch finding, not just static fees |
-| 5 | [TrainProtocol/contracts](https://github.com/TrainProtocol/contracts) `train-htlc` (`3dbda69`) | lock → redeem → refund | **Negative control:** should survive TF-02 and reject PD and hook mints. MEMO-01 and TF-03 are still open | Shows that ExtensionLab does not just produce noise on careful code |
+| 5 | [TrainProtocol/contracts](https://github.com/TrainProtocol/contracts) `train-htlc` (`3dbda69`) | lock → redeem / expired refund | **Observed:** net accounting and PD/hook rejection work, but fee-bearing exits fail at close (35). Permissionless pre-harvest makes both pass | The predicted close-error tolerance was wrong; this is a comparison target, not a universally passing control |
 
 Vendoring third-party code into `targets/` means following each repository's license. A fetch
 script pinned to a commit is safer than copying the code.
@@ -229,7 +230,8 @@ minimum demo for a grant application or the Hacker House, not an entry to a spec
 
 ### Week 3 (Nov 5–11): breadth and hooks
 
-- Two more targets: Sablier solsab, and Train HTLC as the negative control.
+- Done locally (22 Oct): Sablier Merkle Instant and Train HTLC, including explicit passing fee
+  cases. Train was not the predicted negative control: a failed close CPI rolls back both exits.
 - Hook programs in `hooks/` (allow, deny, extra-account), built with `cargo build-sbf` 3.1.10 and
   recorded with a sha256. Then run HOOK-01, HOOK-02 and HOOK-03.
 - Run a GitHub workflow once for real against `targets/escrow`.
@@ -266,6 +268,13 @@ SPL Token only), 5 (issuer steps, Pausable, CpiGuard), 6 (probe port), and 7 (th
 Task 9 (hook programs) remains open; task 10 (runtime binary pinning) is done. Known gaps
 found in review and not fixed yet:
 
+- Added (alpha 0.3.0): Sablier Merkle Instant and Train HTLC adapters, pinned unchanged source
+  fetches, eight real protocol golden tests and two target-building CI jobs. Nominal Sablier fee
+  funding fails; explicit fee-aware funding passes. Train fee-bearing exits fail at close; real
+  pre-harvest makes both pass. These are local results, not a deployed-protocol audit.
+- Added: `extensionlab init` generates an isolated adapter crate with explicit harness errors
+  until real programs, transactions and expectations are wired. An external crate was compiled
+  and its unwired run verified to exit 3 with zero passes. External human adoption is unverified.
 - Fixed (22 Oct): issuer actions with no eligible accounts or tokens are `not_applicable`.
   They no longer count as passes; real compatibility failures still take precedence.
 - The escrow's `update` flow is not in any default scenario (it is neither entry nor exit).
@@ -274,7 +283,7 @@ found in review and not fixed yet:
   Host tests verify expectations across a fee change and a two-epoch advance.
 - Added (22 Oct): `report compare`, a reusable root GitHub Action, and a locally verified
   generated refund regression that fails on the original escrow and passes with fix A.
-  Hosted CI execution and external adoption are still unverified.
+  Hosted CI passed at `125d8ee` ([run 39801608961](https://github.com/Anon1one/extensionlab/actions/runs/39801608961)); external adoption is still unverified.
 
 1. **Runner.** Implement `Runner::run_case` in `crates/extensionlab-core/src/runner.rs`, using
    `mint.rs`, `invariants.rs`, `report.rs` and `diagnosis.rs`. Derive keypairs from
@@ -321,7 +330,7 @@ found in review and not fixed yet:
    cover these results and recovery. The actual results are in README.md instead of a separate
    write-up. Generated `--expect observed` and pass-required regressions both compile: the
    former passes and the latter fails on the known incompatibility. The CI workflow now has
-   a separate target-build/regression-export job; GitHub execution is not verified yet.
+   a separate target-build/regression-export job; its hosted run passed at `125d8ee`.
 8. **Repository hygiene.**
    - `LICENSE`. Done (2026-10-22): MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`).
    - Done (2026-10-22): `.github/workflows/ci.yml` runs fmt, clippy and `cargo test --workspace`

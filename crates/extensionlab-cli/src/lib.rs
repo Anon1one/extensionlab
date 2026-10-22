@@ -15,7 +15,7 @@
 //! ```
 //!
 //! Commands that work without an adapter: `matrix list`, `matrix show`,
-//! `report render`, `regress`, `adapters`. `run` needs the adapter compiled
+//! `report render`, `regress`, `adapters`, `init`. `run` needs the adapter compiled
 //! into the binary; `adapters/escrow` is an example.
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
@@ -30,6 +30,8 @@ use extensionlab_core::{
 };
 use std::path::PathBuf;
 use std::process::ExitCode;
+
+mod scaffold;
 
 /// Constructor for an adapter.
 pub type AdapterFactory = fn() -> Box<dyn Adapter>;
@@ -83,6 +85,8 @@ pub struct Cli {
 /// Top-level commands.
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Create an adapter crate to wire up your protocol's actual flows.
+    Init(InitArgs),
     /// Run an adapter against a matrix of token configurations.
     Run(RunArgs),
     /// List or show built-in matrices.
@@ -101,6 +105,20 @@ pub enum Command {
     Regress(RegressArgs),
     /// List adapters compiled into this binary.
     Adapters,
+}
+
+/// Arguments for creating an adapter crate.
+#[derive(Debug, Args)]
+pub struct InitArgs {
+    /// Cargo package and adapter name.
+    #[arg(long, value_parser = scaffold::package_name)]
+    pub name: String,
+    /// New directory for the adapter crate (must not exist).
+    #[arg(long)]
+    pub out: PathBuf,
+    /// ExtensionLab checkout supplying the SDK crates.
+    #[arg(long)]
+    pub extensionlab_path: Option<PathBuf>,
 }
 
 /// Output formats for `run`.
@@ -253,6 +271,19 @@ fn read_report(path: &PathBuf) -> Result<Report, Error> {
 pub fn main_with(registry: Registry) -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
+        Command::Init(args) => {
+            let root = args
+                .extensionlab_path
+                .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."));
+            match scaffold::create(&args.name, &args.out, &root) {
+                Ok(()) => {
+                    println!("Created adapter crate at {}. Wire the real program and flows in src/lib.rs, then run cargo run -- run --adapter {}.", args.out.display(), args.name);
+                    println!("Until wired, runs return harness errors and cannot pass compatibility checks.");
+                    ExitCode::from(EXIT_OK)
+                }
+                Err(error) => harness_error(error),
+            }
+        }
         Command::Adapters => {
             if registry.entries().is_empty() {
                 println!(

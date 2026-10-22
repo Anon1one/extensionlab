@@ -15,19 +15,21 @@ delegates, required memos and transfer hooks. For each case you get:
 It runs locally on [LiteSVM](https://github.com/LiteSVM/litesvm), using the real SPL Token,
 Token-2022 and Associated Token Account programs that LiteSVM bundles.
 
-## Status (2026-10-22): alpha, two targets and a CI compatibility gate
+## Status (2026-10-22): alpha 0.3.0, four targets and a CI compatibility gate
 
-ExtensionLab runs cases against the escrow in `targets/escrow` and an unmodified, pinned
-Solana Foundation escrow example fetched into `targets/program-examples`.
+ExtensionLab runs cases against the escrow in `targets/escrow` and three unmodified, pinned
+outside targets: a Solana Foundation escrow example, Sablier Merkle Instant airdrops and Train HTLC.
 Reports can be compared between revisions to catch new failures and lost coverage. This is
 local compatibility testing, not a security audit or a claim of mainnet equivalence.
 
 | Part | State |
 |---|---|
 | `crates/extensionlab-core` | Mint factory for SPL Token and Token-2022 with TransferFee, DefaultAccountState(Frozen), PermanentDelegate, TransferHook (program id only), NonTransferable, Pausable, and MemoTransfer and CpiGuard on actor accounts, tested against LiteSVM's bundled programs. Scenario matrix and case expansion, invariant checks, run classification, the broken-assumption catalog, JSON and Markdown reports, CI exit codes, and regression-stub generation. **The runner:** `Runner::run_case` executes a case in a fresh LiteSVM with seeded keypairs (mints, actor accounts, flows, issuer actions: drain, freeze, harvest, set transfer fee, pause, resume, pause all; clock and epoch steps), snapshots the tracked accounts, checks the invariants, and classifies and diagnoses the run. Harness problems become `error` runs. |
-| `crates/extensionlab-cli` | `matrix`, `report`, `regress`, `adapters` and `run`. The `extensionlab` binary has no adapter compiled in; a protocol builds its own binary with `main_with(registry)`. |
+| `crates/extensionlab-cli` | `init`, `matrix`, `report`, `regress`, `adapters` and `run`. `init` creates an isolated adapter crate; the protocol wires its real flows into it. |
 | `adapters/escrow` | Adapter for `targets/escrow` built from raw instruction bytes (no `anchor-lang` dependency), 341 non-blank lines without comments (after `cargo fmt`). Two variants: `escrow` (take creates the payout accounts) and `escrow-existing-atas` (they exist beforehand, which is what exercises required memos on payouts). The `extensionlab-escrow` binary. Golden tests check that the runner reproduces F1 and F2 below, plus harvest, expiry, freeze, CPI Guard, pause and multi-transaction behaviour. |
 | `adapters/program-examples-escrow` | First third-party adapter: `solana-foundation/program-examples` at `de090195e4de698e150572c4f886c333323a64a5`. Raw instructions, no Anchor dependency, existing payout ATAs, 268 non-blank/non-comment adapter lines. Four tests cover the baseline, both fee-blocked exits, harvest recovery, delegate drain and missing-binary errors. |
+| `adapters/sablier-merkle-instant` | Non-escrow campaign funding, one-leaf Merkle claim and creator clawback. Nominal and explicitly fee-aware client profiles use the same unmodified program; four golden tests check failures and successful settlement. |
+| `adapters/train-htlc` | Measured-net token lock, redeem and expired sender refund. Four golden tests cover extension rejection, withheld-fee close failures and real harvest recovery. |
 | `targets/escrow` | An Anchor escrow written by the repository author during Turbin3 Q3 2026. It is a learning project, and its `Anchor.toml` configures localnet only. It has one added test file that reproduces its Token-2022 failures by hand. The program code is unchanged. |
 | `research/` | The reproduction write-up, an extension risk matrix, market and competitor notes, and the architecture. |
 | Transfer-hook test programs | Not written yet. CI (`.github/workflows/ci.yml`) and the license files exist. |
@@ -73,9 +75,8 @@ Requirements:
 ### Host workspace (no Solana toolchain needed)
 
 ```sh
-cargo test --workspace --locked # 91 tests: core unit tests, mint factory tests, a program-free runner
-                            # test, the 19-test extension probe, CLI tests, and 10 escrow golden
-                            # tests plus 4 third-party adapter tests (program runs skip until their .so is built)
+cargo test --workspace --locked # 101 tests, including 22 protocol golden tests.
+                              # Program runs skip until their .so is built; target CI jobs require it.
 
 cargo run -p extensionlab-cli -- matrix list
 cargo run -p extensionlab-cli -- matrix show default
@@ -100,6 +101,21 @@ Exit codes:
 
 An issuer action with no eligible accounts or tokens is **not applicable**, never a pass.
 Other steps still run, and actual failures take precedence over not-applicable status.
+
+### Start an adapter in your own repository
+
+From the ExtensionLab checkout:
+
+```sh
+cargo run --locked -p extensionlab-cli -- init --name my-protocol --out ../my-protocol-extensionlab
+cd ../my-protocol-extensionlab
+cargo run -- run --adapter my-protocol --matrix default
+```
+
+The new crate has its own Cargo workspace and path dependencies on this checkout. Wire its
+`src/lib.rs` to the actual compiled program, actors, transactions, tracked accounts and expected
+balances. Until then it returns harness errors (exit 3), with no passing compatibility runs.
+Existing output directories are refused. Use `--extensionlab-path` to choose another SDK checkout.
 
 ### Compare revisions in CI
 
@@ -193,14 +209,87 @@ The fetch script refuses a different or modified existing checkout and supplies 
 lockfile. `EXTENSIONLAB_PROGRAM_EXAMPLES_ESCROW_SO` overrides the binary path. With
 `EXTENSIONLAB_REQUIRE_TARGET_BINARIES=1`, missing binaries fail the new adapter tests rather than
 skipping. The workflow's separate `program-examples` job builds this target, runs the matrix,
-exports an `--expect observed` regression and compiles/runs it. The GitHub-hosted job is not yet
-verified; its build, matrix, tests, regression export and action were verified locally. The default
+exports an `--expect observed` regression and compiles/runs it. The hosted build, matrix, tests,
+regression export and action passed in [run 39801608961](https://github.com/Anon1one/extensionlab/actions/runs/39801608961). The default
 pass-required export also compiles and fails on the observed incompatibility.
 
 The separate `exported-regression` job builds the original escrow and the existing candidate
 fix, then runs `bash scripts/check_regression_fix.sh`. The exported plain Token-2022 refund test
 was verified locally to fail on the original program and pass after fix A. This does not claim
 that fix B resolves the nominal fee-shortfall expectations.
+
+### Non-escrow result: Sablier Merkle Instant
+
+The adapter runs `create_campaign` plus funding in one transaction, then a real one-leaf Merkle
+`claim` or creator `clawback`, against
+[`solsab@e060b26a6c736a3104a0b24ac069fd53633b3ceb`](https://github.com/sablier-labs/solsab/tree/e060b26a6c736a3104a0b24ac069fd53633b3ceb/programs/merkle_instant).
+At this pin the claim fee is zero, so no oracle service is needed. Program source is unchanged;
+its BUSL-1.1 license and the repository's other license files stay in the ignored source checkout.
+
+| Default matrix | Pass | Rejected | Fail | Harness error |
+|---|---|---|---|---|
+| `sablier-merkle-instant` (18 runs) | 8 | 4 | 6 | 0 |
+| `sablier-merkle-fee-aware` (18 runs) | 10 | 4 | 4 | 0 |
+
+With a 200 bps fee, nominal funding of 10,000,000 leaves 9,800,000 spendable plus 200,000 withheld.
+A 10,000,000 leaf claim or nominal clawback fails with `InsufficientFunds` (1). This demonstrates
+an underfunded client flow; it does not establish a permanent fund lock.
+
+The opt-in fee-aware client sends 10,204,082 to fund the same 10,000,000 campaign. Both exits
+then pass their explicit net expectations: the claimant receives 9,800,000, or the creator ends
+with 99,595,918 after clawback. This profile deliberately promises a net payout, not the leaf's
+gross amount. Global nominal-mismatch classification remains `fail`. Permanent-delegate drains
+and issuer pauses still fail; this is a positive control for the fee case, not universal support.
+
+```sh
+scripts/fetch_targets.sh solsab
+(cd targets/solsab && \
+  RUSTUP_TOOLCHAIN=stable CARGO_BUILD_JOBS=4 nice -n 15 cargo build-sbf \
+  --manifest-path programs/merkle_instant/Cargo.toml --tools-version v1.52 -- --locked)
+cargo run --locked -p extensionlab-adapter-sablier-merkle-instant -- \
+  run --adapter sablier-merkle-instant --out extensionlab-report/sablier
+cargo run --locked -p extensionlab-adapter-sablier-merkle-instant -- \
+  run --adapter sablier-merkle-fee-aware --out extensionlab-report/sablier-fee-aware
+```
+
+### Comparison target: Train HTLC
+
+The adapter uses unchanged
+[`contracts@3dbda6949e35e9095493333a6fff7dfe4ccde1aa`](https://github.com/TrainProtocol/contracts/tree/3dbda6949e35e9095493333a6fff7dfe4ccde1aa/chains/solana/programs/train-htlc)
+(MIT): a token lock, recipient redeem, or sender refund after the actual 60-second timelock.
+It reads the real lock's recorded amount, which correctly measures the net deposit.
+
+| Matrix | Pass | Rejected | Fail | Harness error |
+|---|---|---|---|---|
+| `default` (22 runs) | 10 | 8 | 4 | 0 |
+| `all` (30 runs) | 12 | 12 | 6 | 0 |
+
+Plain SPL Token and Token-2022 settle; permanent-delegate and hook mints are rejected before
+custody. The earlier research prediction that a failed close could be tolerated was wrong:
+with 200 bps fees, both exits revert at `CloseAccount` (35), and the attempted catch branch never
+logs. A callee error immediately fails the transaction, as the
+[Solana CPI API documents](https://docs.rs/solana-cpi/latest/solana_cpi/fn.invoke.html).
+
+A real permissionless harvest before the exit makes both fee-bearing flows pass their net
+expectations: redeem delivers 9,604,000, refund restores the sender to 99,604,000, and the vault
+closes. The adapter includes these recovery scenarios. Train is therefore a comparison target,
+not the universally passing negative control originally predicted.
+
+```sh
+scripts/fetch_targets.sh train
+(cd targets/train/chains/solana && \
+  RUSTUP_TOOLCHAIN=stable CARGO_BUILD_JOBS=4 nice -n 15 cargo build-sbf \
+  --manifest-path programs/train-htlc/Cargo.toml --tools-version v1.52 -- --locked)
+cargo run --locked -p extensionlab-adapter-train-htlc -- \
+  run --adapter train-htlc --matrix all --out extensionlab-report/train
+```
+
+The new `protocol-solsab` and `protocol-train` CI jobs fetch the pinned sources, build with their
+upstream lockfiles, require real binaries, run golden tests, compile passing recovery regressions,
+and exercise the reusable action against a same-build reference. Use
+`EXTENSIONLAB_SABLIER_MERKLE_SO` or `EXTENSIONLAB_TRAIN_HTLC_SO` to select another ELF; reports
+record its actual hash and label the source revision as expected rather than verified provenance.
+These are local, pinned-runtime results; deployed behavior and external adoption remain unverified.
 
 ### Escrow reproduction
 
@@ -226,7 +315,9 @@ crates/extensionlab-core/   adapter trait, mint factory, matrix, invariants, dia
 crates/extensionlab-cli/    `extensionlab` binary; protocol repos build their own binary with `main_with(registry)`
 adapters/escrow/            escrow adapter, `extensionlab-escrow` binary, golden test for F1 and F2
 adapters/program-examples-escrow/  pinned outside-target adapter and its CLI/golden tests
-scripts/fetch_targets.sh    fetch the public target with its license and pinned build lockfile
+adapters/sablier-merkle-instant/  airdrop adapter, nominal and fee-aware client profiles
+adapters/train-htlc/         measured-net HTLC adapter and harvest recovery cases
+scripts/fetch_targets.sh    fetch pinned outside targets with their licenses and dependency locks
 targets/locks/              dependency lockfiles for fetched targets
 targets/escrow/             protocol under test (separate Anchor workspace, not a Cargo workspace member)
 research/                   write-ups and logs behind every claim in this README
@@ -272,8 +363,9 @@ From [PLAN.md](PLAN.md). Item 1 (runner, escrow adapter, golden test) is done.
    `solana-foundation/program-examples` escrow; actual results are above. The source is unchanged.
    External maintainer feedback and adoption remain unverified.
 4. Build transfer-hook test programs (allow, deny, extra account) and add the hook scenarios.
-5. Done: reusable CI action, report comparisons, and pinned, hashed Token-2022 binary support.
-   Next: adapter scaffolding, a non-escrow target and a safe implementation as a negative control.
+5. Done: reusable CI action, report comparisons, pinned runtime hashes, adapter scaffolding and
+   a non-escrow airdrop target. Fee-aware Sablier funding and Train harvest recovery supply
+   passing fee cases. External developer trials remain the next product-validation step.
 
 ## Caveats
 

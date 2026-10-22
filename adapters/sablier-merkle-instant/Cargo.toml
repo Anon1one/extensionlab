@@ -1,0 +1,26 @@
+[package]
+name = "extensionlab-adapter-sablier-merkle-instant"
+description = "Compatibility adapter for the pinned Sablier Merkle airdrop program."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "extensionlab-sablier-merkle-instant"
+path = "src/main.rs"
+
+[dependencies]
+extensionlab-core.workspace = true
+extensionlab-cli.workspace = true
+litesvm.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-keccak-hasher.workspace = true
+solana-sha256-hasher.workspace = true
+solana-system-interface.workspace = true
+spl-associated-token-account-interface.workspace = true
+spl-token-2022-interface.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

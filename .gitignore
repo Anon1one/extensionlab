@@ -6,4 +6,6 @@ codex.md
 
 # Public third-party sources are fetched at a pinned revision.
 /targets/program-examples/
+/targets/solsab/
+/targets/train/
 /extensionlab-report/

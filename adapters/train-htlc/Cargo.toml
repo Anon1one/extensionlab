@@ -1,0 +1,25 @@
+[package]
+name = "extensionlab-adapter-train-htlc"
+description = "Fee-aware compatibility adapter for the pinned Train HTLC."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "extensionlab-train-htlc"
+path = "src/main.rs"
+
+[dependencies]
+extensionlab-core.workspace = true
+extensionlab-cli.workspace = true
+litesvm.workspace = true
+solana-clock.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-sha256-hasher.workspace = true
+solana-system-interface.workspace = true
+spl-associated-token-account-interface.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

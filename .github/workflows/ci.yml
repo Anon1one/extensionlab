@@ -1,9 +1,10 @@
-# Host checks and a separate run against a pinned third-party program.
+# Host checks and real runs against pinned third-party programs.
 #
 # The escrow golden tests need targets/escrow/target/deploy/escrowq32026.so,
 # which is built with `cargo build-sbf` and is not committed. Without it they
 # print "skipping" and pass in the host job. The program-examples job builds
 # its actual target, requires the binary, and compiles a generated regression.
+# The protocol-validation jobs do the same for Sablier Merkle Instant and Train HTLC.
 
 name: ci
 
@@ -27,6 +28,16 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked
+      - name: Compile and run a generated external adapter crate
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          trial="$RUNNER_TEMP/extensionlab-trial"
+          cargo run --locked -p extensionlab-cli -- init --name trial-vault --out "$trial"
+          cp Cargo.lock "$trial/Cargo.lock"
+          result=0
+          cargo run --offline --manifest-path "$trial/Cargo.toml" -- run --adapter trial-vault --matrix baseline --out "$trial/report" || result=$?
+          test "$result" -eq 3
 
   program-examples:
     runs-on: ubuntu-latest
@@ -109,3 +120,92 @@ jobs:
         env:
           CARGO_TARGET_DIR: ${{ github.workspace }}/target
         run: bash scripts/check_regression_fix.sh
+
+  protocol-validation:
+    name: protocol-${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: solsab
+            directory: targets/solsab
+            manifest: programs/merkle_instant/Cargo.toml
+            package: extensionlab-adapter-sablier-merkle-instant
+            binary: extensionlab-sablier-merkle-instant
+            adapter: sablier-merkle-instant
+            regression-adapter: sablier-merkle-fee-aware
+            regression-run: transfer_fee_200bps@airdrop/fund_campaign_claim
+            adapter-expr: extensionlab_adapter_sablier_merkle_instant::boxed_fee_aware()
+            test-directory: adapters/sablier-merkle-instant/tests
+          - target: train
+            directory: targets/train/chains/solana
+            manifest: programs/train-htlc/Cargo.toml
+            package: extensionlab-adapter-train-htlc
+            binary: extensionlab-train-htlc
+            adapter: train-htlc
+            regression-adapter: train-htlc
+            regression-run: transfer_fee_200bps@token/lock_harvest_redeem
+            adapter-expr: extensionlab_adapter_train_htlc::boxed()
+            test-directory: adapters/train-htlc/tests
+    env:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_BUILD_JOBS: "4"
+      EXTENSIONLAB_REQUIRE_TARGET_BINARIES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned Solana build tools
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://release.anza.xyz/v3.1.10/install -o "$RUNNER_TEMP/install-solana.sh"
+          sh "$RUNNER_TEMP/install-solana.sh"
+          printf '%s\n' "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Fetch the unchanged licensed target
+        env:
+          TARGET: ${{ matrix.target }}
+        run: scripts/fetch_targets.sh "$TARGET"
+      - name: Build the pinned target
+        working-directory: ${{ matrix.directory }}
+        env:
+          MANIFEST: ${{ matrix.manifest }}
+        run: cargo build-sbf --manifest-path "$MANIFEST" --tools-version v1.52 -- --locked
+      - name: Assert the real protocol results
+        env:
+          PACKAGE: ${{ matrix.package }}
+        run: cargo test --locked -p "$PACKAGE"
+      - name: Produce the default compatibility evidence
+        env:
+          PACKAGE: ${{ matrix.package }}
+          ADAPTER: ${{ matrix.adapter }}
+        run: |
+          result=0
+          cargo run --locked -p "$PACKAGE" -- run --adapter "$ADAPTER" --matrix default --out extensionlab-report/protocol || result=$?
+          test "$result" -eq 1
+      - name: Generate and execute a passing recovery regression
+        env:
+          PACKAGE: ${{ matrix.package }}
+          ADAPTER: ${{ matrix.regression-adapter }}
+          RUN: ${{ matrix.regression-run }}
+          ADAPTER_EXPR: ${{ matrix.adapter-expr }}
+          TEST_DIRECTORY: ${{ matrix.test-directory }}
+        run: |
+          result=0
+          cargo run --locked -p "$PACKAGE" -- run --adapter "$ADAPTER" --matrix default --out extensionlab-report/recovery || result=$?
+          test "$result" -eq 1
+          cargo run --locked -p "$PACKAGE" -- regress extensionlab-report/recovery/report.json --run "$RUN" --expect observed --adapter-expr "$ADAPTER_EXPR" --out "$TEST_DIRECTORY/generated_recovery.rs"
+          cargo test --locked -p "$PACKAGE" --test generated_recovery
+      - name: Exercise the reusable action against the same-build reference
+        uses: ./
+        with:
+          binary: target/debug/${{ matrix.binary }}
+          adapter: ${{ matrix.adapter }}
+          baseline-report: extensionlab-report/protocol/report.json
+          out: extensionlab-report/action-check
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: protocol-${{ matrix.target }}
+          path: |
+            extensionlab-report/
+            ${{ matrix.test-directory }}/generated_recovery.rs
