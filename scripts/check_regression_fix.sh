@@ -37,8 +37,15 @@ cargo test --offline --manifest-path "$scratch/Cargo.toml" --test refund --no-ru
 status=0
 cargo test --locked --offline --manifest-path "$scratch/Cargo.toml" --test refund > "$scratch/red.log" 2>&1 || status=$?
 [[ "$status" == 101 ]] || { cat "$scratch/red.log"; echo 'Original program did not fail the regression.' >&2; exit 3; }
-rg -q 'left: Fail' "$scratch/red.log"
-rg -q 'right: Pass' "$scratch/red.log"
-if rg -q 'harness error:|could not compile' "$scratch/red.log"; then cat "$scratch/red.log"; exit 3; fi
+python3 - "$scratch/red.log" <<'PY'
+import re
+import sys
+from pathlib import Path
+log = re.sub(r'\x1b\[[0-?]*[ -/]*[@-~]', '', Path(sys.argv[1]).read_text())
+if ('left: Fail' not in log or 'right: Pass' not in log
+        or 'harness error:' in log or 'could not compile' in log):
+    print(log)
+    raise SystemExit('Expected a compatibility status assertion, not a harness or compiler failure.')
+PY
 EXTENSIONLAB_ESCROW_SO="$patched" cargo test --locked --offline --manifest-path "$scratch/Cargo.toml" --test refund
 echo 'Verified: the exported refund test fails on the original program and passes with fix A.'
