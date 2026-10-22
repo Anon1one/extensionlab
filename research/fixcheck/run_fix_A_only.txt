@@ -1,0 +1,36 @@
+     Running unittests src/lib.rs (target/debug/deps/escrowq32026-6e8d2e006e781f73)
+test test_id ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/fixcheck.rs (target/debug/deps/fixcheck-30366964cecaf78b)
+test fix_a_refund_plain_token2022_succeeds ... ok
+test fix_a_refund_after_expiry_succeeds ... ok
+test fix_a_refund_fee_mint_a_fails_at_close ... ok
+test fix_a_refund_fee_mint_a_after_harvest_costs_maker_two_fees ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests/mod.rs (target/debug/deps/mod-ca9f100edfecc22f)
+test test_make_and_refund ... ok
+test test_take_creates_missing_atas ... ok
+test test_make_and_take ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests/token2022_fees.rs (target/debug/deps/token2022_fees-2fde172cbadf5632)
+test a_fee_mint_a_make_vault_holds_less_than_deposit ... ok
+test limit_mixed_token_programs_rejected_at_make ... ok
+test repro_refund_rejected_for_any_token2022_mint ... FAILED
+test b_fee_mint_b_take_maker_receives_less_than_receive ... ok
+test d_fee_mint_b_issuer_fee_change_after_make_cuts_maker_net ... ok
+test repro_c_fee_mint_a_refund_rejected_before_close ... FAILED
+test repro_b_fee_both_mints_take_fails_closing_vault ... ok
+test repro_b_fee_mint_a_take_fails_closing_vault_with_withheld_fees ... ok
+test b_fee_mint_a_take_succeeds_after_permissionless_harvest ... ok
+test d_fee_mint_b_max_receive_bounds_gross_not_net ... ok
+test d_fee_mint_b_gross_up_receive_gives_maker_exact_net ... ok
+test b_fee_mint_a_take_succeeds_with_harvest_prepended_in_same_tx ... ok
+test control_plain_token2022_make_and_take ... ok
+test repro_expired_token2022_escrow_is_locked_forever ... FAILED
+test limit_maker_cannot_self_take_with_one_wallet ... ok
+test rule_token2022_refuses_to_close_account_with_withheld_fees ... ok
+thread 'repro_refund_rejected_for_any_token2022_mint' (2534942) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+thread 'repro_c_fee_mint_a_refund_rejected_before_close' (2534940) panicked at programs/escrowq32026/tests/token2022_fees.rs:179:13:
+thread 'repro_expired_token2022_escrow_is_locked_forever' (2534941) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+test result: FAILED. 13 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+error: test failed, to rerun pass `--test token2022_fees`

@@ -1,0 +1,757 @@
+{
+  "schema_version": 1,
+  "title": "Token-2022 extension risk matrix for integrators",
+  "date": "2026-10-21",
+  "companion_doc": "02_extension_matrix.md",
+  "environment": {
+    "probe_runtime": "litesvm 0.16.0 (LiteSVM::new loads bundled spl_token_2022-11.0.0.so)",
+    "interface_crate": "spl-token-2022-interface 3.1.1",
+    "upstream_source_commit": "solana-program/token-2022@3d94b2fa6bf4369f4eb98ea69c188726b05ad64c",
+    "latest_program_release": "program@v11.1.0 (2026-09-23)",
+    "mainnet_program_version": "unverified",
+    "probe_source": "crates/extensionlab-core/tests/extension_probe.rs (ported 2026-10-22); the first-run source is kept as research/logs/02_probe_litesvm-0.16.0_main.rs.txt",
+    "probe_output": "research/logs/02_probe_litesvm-0.16.0_out.txt (11.0.0, 2026-10-21); research/logs/02_extension_probe_litesvm-0.10.0.log (10.0.0, 2026-10-22)",
+    "probe_rerun": {
+      "date": "2026-10-22",
+      "runtime": "litesvm 0.10.0 (bundled spl_token_2022-10.0.0.so, spl_memo-3.0.0.so at MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr, spl_associated_token_account-1.1.1.so)",
+      "interface_crate": "spl-token-2022-interface 2.1.0",
+      "checks": 127,
+      "same": 122,
+      "different": 2,
+      "not_probed": 3,
+      "differences": [
+        "CT.4: NonTransferable + ConfidentialTransferMint without ConfidentialMintBurn is accepted on 10.0.0 (11.0.0: InvalidExtensionCombination 0x33).",
+        "PB.1: PermissionedBurn does not exist on 10.0.0; its initializer (instruction 46) fails with InvalidInstruction 0xc (11.0.0: mint created)."
+      ],
+      "not_probed_checks": ["SIZE.m17 (PermissionedBurn mint size)", "PB.2 (standard BurnChecked on a PermissionedBurn mint)", "PB.3 (permissioned BurnChecked)"]
+    },
+    "solana_programs_built": false
+  },
+  "evidence_tags": {
+    "probe": "executed in the LiteSVM probe and observed",
+    "src": "read in Token-2022 source, not executed",
+    "doc": "stated in official docs (solana-program.com or solana.com), not executed",
+    "secondary": "stated by a third-party security write-up, not executed",
+    "unverified": "our inference or expectation, not checked"
+  },
+  "severity_scale": {
+    "high": "a third party can move, destroy or indefinitely lock custodied tokens, or protocol accounting silently diverges from the vault balance",
+    "med": "a standard flow reverts and is fixable in protocol code, or adds a liveness dependency on a user or issuer action, or amount math is wrong when UI amounts are used",
+    "low": "fails loudly at listing or setup, or is cosmetic for custody flows"
+  },
+  "assumption_keys": [
+    "deposit_credit",
+    "withdraw",
+    "refund",
+    "close_account",
+    "pda_owned_vault",
+    "cpi_transfer",
+    "amount_math",
+    "ui_vs_raw_amount",
+    "account_sizing",
+    "liveness",
+    "listing",
+    "cached_mint_validation"
+  ],
+  "extensions": [
+    {
+      "id": "transfer_fee_config",
+      "name": "TransferFeeConfig",
+      "extension_types": [
+        {"name": "TransferFeeConfig", "index": 1, "side": "mint"},
+        {"name": "TransferFeeAmount", "index": 2, "side": "account"}
+      ],
+      "side": "mint",
+      "required_account_extensions": ["TransferFeeAmount"],
+      "summary": "Mint charges a fee in basis points, capped at maximum_fee, on every transfer; the fee is withheld in the destination account.",
+      "mutable_by": ["transfer_fee_config_authority (SetTransferFee; new fee applies at epoch + 2)", "withdraw_withheld_authority (withdraws withheld fees)"],
+      "breaks": [
+        {"assumption": "deposit_credit", "failure_mode": "Protocol credits the instruction amount; vault receives amount minus fee (10000 deposited at 100 bps: vault 9900, withheld 100).", "error": null, "evidence": "probe"},
+        {"assumption": "withdraw", "failure_mode": "Paying out the credited amount exceeds the vault balance; the last withdrawer fails.", "error": {"name": "InsufficientFunds", "code": 1, "hex": "0x1", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "refund", "failure_mode": "Round trip pays the fee twice (10000 -> 9900 in vault -> 9801 to user; 99 withheld on the user's account).", "error": null, "evidence": "probe"},
+        {"assumption": "amount_math", "failure_mode": "Fee is ceil(amount*bps/10000) capped at maximum_fee; amount 1 at 1% credits 0 and withholds 1. A fee change applies at epoch + 2 (credited 990, 990, 950 at epoch +0, +1, +2 after raising 100 to 500 bps).", "error": null, "evidence": "probe"},
+        {"assumption": "close_account", "failure_mode": "A zero-balance vault with withheld fees cannot be closed until HarvestWithheldTokensToMint, which is permissionless.", "error": {"name": "AccountHasWithheldTransferFees", "code": 35, "hex": "0x23", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "Legacy Transfer (no mint) is rejected.", "error": {"name": "MintRequiredForTransfer", "code": 31, "hex": "0x1f", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "TransferCheckedWithFee with a stale or wrong expected fee is rejected.", "error": {"name": "FeeMismatch", "code": 32, "hex": "0x20", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "account_sizing", "failure_mode": "A 165-byte token account cannot be initialized for this mint.", "error": {"name": "InvalidAccountData", "code": null, "hex": null, "kind": "ProgramError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 278,
+        "account_space": 178,
+        "ordered_instructions": ["system create_account(space=278, owner=Token-2022)", "initialize_transfer_fee_config(fee_authority, withdraw_authority, bps, maximum_fee)", "initialize_mint2"],
+        "post_init": ["set_transfer_fee(bps, max) then advance Clock.epoch by 2 to make it effective", "harvest_withheld_tokens_to_mint(mint, [accounts])"],
+        "notes": ["Size token accounts with GetAccountDataSize, try_calculate_account_len with required extensions, or the ATA program."]
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Credit the measured vault balance delta, or compute calculate_epoch_fee(current_epoch, amount).", "Use transfer_checked_with_fee with the expected fee so fee changes fail fast.", "Use calculate_inverse_epoch_fee when an exact net amount must arrive.", "Harvest withheld fees before closing vaults.", "Optionally reject mints whose current or newer fee exceeds a tolerance."],
+        "detection": "StateWithExtensions::<Mint>::unpack -> get_extension::<TransferFeeConfig>() -> get_epoch_fee(epoch), newer_transfer_fee.epoch, transfer_fee_config_authority (Some = mutable)."
+      },
+      "severity": "high",
+      "severity_note": "Silent accounting insolvency in pooled vaults; blocked vault close.",
+      "priority": "P0",
+      "scenarios": ["TF-01", "TF-02", "TF-03"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#transfer-fees",
+        "https://www.solana-program.com/docs/token-2022/onchain",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/mint.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/remittance.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/tests/authority.rs"]
+    },
+    {
+      "id": "transfer_hook",
+      "name": "TransferHook",
+      "extension_types": [
+        {"name": "TransferHook", "index": 14, "side": "mint"},
+        {"name": "TransferHookAccount", "index": 15, "side": "account"}
+      ],
+      "side": "mint",
+      "required_account_extensions": ["TransferHookAccount"],
+      "summary": "Token-2022 CPIs the mint's hook program (Execute) on every transfer_checked, after balances are updated.",
+      "mutable_by": ["transfer hook authority (Update program_id, including from None to Some)"],
+      "breaks": [
+        {"assumption": "cpi_transfer", "failure_mode": "CPI transfer that does not forward the hook program, validation PDA [\"extra-account-metas\", mint] and extra accounts fails.", "error": {"name": "MissingAccount", "code": null, "hex": null, "kind": "InstructionError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "Hook program id account passed but not an executable program.", "error": {"name": "UnsupportedProgramId", "code": null, "hex": null, "kind": "InstructionError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "Hook program passed with a missing or invalid validation account (probe used the memo program as a stand-in hook).", "error": {"name": "InvalidAccountData", "code": null, "hex": null, "kind": "ProgramError"}, "evidence": "probe"},
+        {"assumption": "liveness", "failure_mode": "Hook authority switches the hook on after the protocol accepted the mint; a previously working transfer then fails.", "error": {"name": "MissingAccount", "code": null, "hex": null, "kind": "InstructionError"}, "evidence": "probe"},
+        {"assumption": "withdraw", "failure_mode": "Hook program can reject any transfer (blocklists, allowlists), reverting withdraw or refund.", "error": null, "evidence": "doc"},
+        {"assumption": "cpi_transfer", "failure_mode": "Hook receives all transfer accounts read-only and without the sender's signer privilege.", "error": null, "evidence": "doc"},
+        {"assumption": "cpi_transfer", "failure_mode": "Legacy Transfer (no mint) is rejected.", "error": {"name": "MintRequiredForTransfer", "code": 31, "hex": "0x1f", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "Self-transfers do not invoke the hook.", "error": null, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 234,
+        "account_space": 171,
+        "ordered_instructions": ["system create_account(space=234)", "transfer_hook::instruction::initialize(authority, Some(hook_program_id) or None)", "initialize_mint2"],
+        "post_init": ["transfer_hook::instruction::update(authority, Some(program_id))", "hook program's InitializeExtraAccountMetaList to create the validation PDA"],
+        "notes": ["Realistic scenarios need real hook programs loaded with svm.add_program (always-allow, deny-all, deny-recipient, require-extra-writable-account). Not built in this task."]
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Allowlist accepted hook program ids; reject others.", "Reject mints whose hook authority is Some unless the issuer is trusted, or re-check program_id on every transfer.", "In CPI, use spl_token_2022::onchain::invoke_transfer_checked and forward remaining accounts.", "Clients resolve extra accounts off-chain (getTransferCheckedWithTransferHookInstructionAsync / createTransferCheckedWithTransferHookInstruction).", "Prefer pull-based claims so one reverting transfer cannot block others (unverified design advice)."],
+        "detection": "mint.get_extension::<TransferHook>() -> program_id (Option), authority (Option)."
+      },
+      "severity": "high",
+      "severity_note": "Third-party code on every transfer can block withdrawals and refunds; can be switched on later.",
+      "priority": "P0",
+      "scenarios": ["HOOK-01", "HOOK-02", "HOOK-03"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#transfer-hook",
+        "https://www.solana-program.com/docs/transfer-hook-interface/specification",
+        "https://www.solana-program.com/docs/transfer-hook-interface/configuring-extra-accounts",
+        "https://solana.com/docs/tokens/extensions/transfer-hook",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/onchain.rs"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "permanent_delegate",
+      "name": "PermanentDelegate",
+      "extension_types": [{"name": "PermanentDelegate", "index": 12, "side": "mint"}],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "A mint-level delegate can transfer or burn from any token account of the mint without the owner's signature; holders cannot revoke it.",
+      "mutable_by": ["current permanent delegate (SetAuthority PermanentDelegate; can reassign or set None)"],
+      "breaks": [
+        {"assumption": "pda_owned_vault", "failure_mode": "Delegate transferred 600 and burned 400 from a PDA-style vault without the vault owner signing; vault balance 0.", "error": null, "evidence": "probe"},
+        {"assumption": "withdraw", "failure_mode": "Liabilities exceed vault balance after seizure; later withdrawals fail.", "error": {"name": "InsufficientFunds", "code": 1, "hex": "0x1", "kind": "TokenError"}, "evidence": "unverified"},
+        {"assumption": "cpi_transfer", "failure_mode": "CPI Guard does not stop the permanent delegate.", "error": null, "evidence": "doc"},
+        {"assumption": "listing", "failure_mode": "Token-2022 logs 'Warning: Mint has a permanent delegate, so tokens in this account may be seized at any time' on InitializeAccount.", "error": null, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 202,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=202)", "initialize_permanent_delegate(delegate)", "initialize_mint2"],
+        "post_init": ["delegate signs transfer_checked or burn_checked as authority on any account"],
+        "notes": ["Owner test a_permanent_delegate_moves_tokens_without_consent shows the same via CPI."]
+      },
+      "handling": {
+        "recommendation": "reject",
+        "actions": ["Reject by default.", "If a trusted issuer must be supported, reconcile liabilities against actual vault balance and define shortfall handling."],
+        "detection": "mint.get_extension::<PermanentDelegate>() with delegate.is_some()."
+      },
+      "severity": "high",
+      "severity_note": "Custodied tokens can be moved or destroyed without consent.",
+      "priority": "P0",
+      "scenarios": ["PD-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#permanent-delegate",
+        "https://solana.com/docs/tokens/extensions/permanent-delegate",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/permanent_delegate.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/tests/authority.rs"]
+    },
+    {
+      "id": "pausable",
+      "name": "Pausable",
+      "extension_types": [
+        {"name": "Pausable", "index": 26, "side": "mint"},
+        {"name": "PausableAccount", "index": 27, "side": "account"}
+      ],
+      "side": "mint",
+      "required_account_extensions": ["PausableAccount"],
+      "summary": "Pause authority can halt transfers, mints and burns for the mint.",
+      "mutable_by": ["pause authority (Pause / Resume)"],
+      "breaks": [
+        {"assumption": "withdraw", "failure_mode": "transfer_checked while paused.", "error": {"name": "MintPaused", "code": 67, "hex": "0x43", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "refund", "failure_mode": "Refund or timeout logic cannot move tokens while paused; deadlines can be missed.", "error": {"name": "MintPaused", "code": 67, "hex": "0x43", "kind": "TokenError"}, "evidence": "unverified"},
+        {"assumption": "liveness", "failure_mode": "mint_to and burn_checked also fail while paused; Approve and closing an empty account still succeed.", "error": {"name": "MintPaused", "code": 67, "hex": "0x43", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "Legacy Transfer (no mint) is rejected on PausableAccount accounts.", "error": {"name": "MintRequiredForTransfer", "code": 31, "hex": "0x1f", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 203,
+        "account_space": 170,
+        "ordered_instructions": ["system create_account(space=203)", "pausable::instruction::initialize(authority)", "initialize_mint2"],
+        "post_init": ["pausable::instruction::pause(authority)", "pausable::instruction::resume(authority)"],
+        "notes": []
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Treat MintPaused as retryable.", "Do not penalize users for deadlines missed during a pause.", "Avoid partial state across multi-transaction flows."],
+        "detection": "mint.get_extension::<PausableConfig>() -> paused, authority."
+      },
+      "severity": "high",
+      "severity_note": "Issuer can lock custodied tokens indefinitely.",
+      "priority": "P0",
+      "scenarios": ["PAUSE-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#pausable",
+        "https://solana.com/docs/tokens/extensions/pausable",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "default_account_state_frozen",
+      "name": "DefaultAccountState (Frozen)",
+      "extension_types": [{"name": "DefaultAccountState", "index": 6, "side": "mint"}],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "New token accounts start Frozen; only the freeze authority can thaw them.",
+      "mutable_by": ["freeze authority (UpdateDefaultAccountState; affects only accounts created afterwards)"],
+      "breaks": [
+        {"assumption": "deposit_credit", "failure_mode": "Newly created vault is frozen; deposit transfer fails.", "error": {"name": "AccountFrozen", "code": 17, "hex": "0x11", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "pda_owned_vault", "failure_mode": "mint_to into a new frozen account fails; 'create vault and deposit' in one transaction reverts.", "error": {"name": "AccountFrozen", "code": 17, "hex": "0x11", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "withdraw", "failure_mode": "The required freeze authority can freeze the vault after deposits; withdraw fails.", "error": {"name": "AccountFrozen", "code": 17, "hex": "0x11", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "refund", "failure_mode": "Refund into a freshly created user account fails the same way.", "error": {"name": "AccountFrozen", "code": 17, "hex": "0x11", "kind": "TokenError"}, "evidence": "unverified"},
+        {"assumption": "listing", "failure_mode": "Frozen default without a freeze authority is rejected at InitializeMint2.", "error": {"name": "MintCannotFreeze", "code": 16, "hex": "0x10", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 171,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=171)", "initialize_default_account_state(Frozen)", "initialize_mint2(freeze_authority=Some)"],
+        "post_init": ["thaw_account(account, mint, freeze_authority)", "update_default_account_state(Initialized)"],
+        "notes": []
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Check account.base.is_frozen() after creating a vault and return a clear error.", "Document that the issuer must thaw protocol vaults, or reject the mint."],
+        "detection": "mint.get_extension::<DefaultAccountState>().state == Frozen; mint.base.freeze_authority."
+      },
+      "severity": "med",
+      "severity_note": "Onboarding failure on its own; the implied freeze authority is a separate risk that classic SPL tokens share.",
+      "priority": "P0",
+      "scenarios": ["DAS-01", "DAS-02"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#default-account-state",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/remittance.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/tests/authority.rs"]
+    },
+    {
+      "id": "memo_transfer",
+      "name": "MemoTransfer (required memo)",
+      "extension_types": [{"name": "MemoTransfer", "index": 8, "side": "account"}],
+      "side": "account",
+      "required_account_extensions": [],
+      "summary": "Incoming transfers to the account need a memo instruction immediately before the transfer (in CPI: the previous processed sibling instruction).",
+      "mutable_by": ["token account owner (enable/disable; can add the extension later via Reallocate)"],
+      "breaks": [
+        {"assumption": "withdraw", "failure_mode": "User reallocates their own account (165 -> 171 bytes) and enables required memos; protocol withdraw to that user without a memo fails.", "error": {"name": "NoMemo", "code": 36, "hex": "0x24", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "refund", "failure_mode": "Same for refunds and batched payouts; one recipient can revert a batch.", "error": {"name": "NoMemo", "code": 36, "hex": "0x24", "kind": "TokenError"}, "evidence": "unverified"},
+        {"assumption": "deposit_credit", "failure_mode": "Deposit into a memo-required vault without a memo, or with the memo after the transfer, fails; outgoing transfers need no memo.", "error": {"name": "NoMemo", "code": 36, "hex": "0x24", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "In CPI, the program must CPI the memo program immediately before the transfer CPI.", "error": {"name": "NoMemo", "code": 36, "hex": "0x24", "kind": "TokenError"}, "evidence": "doc"}
+      ],
+      "litesvm": {
+        "mint_space": null,
+        "account_space": 171,
+        "ordered_instructions": ["system create_account(space=171) or reallocate(&[MemoTransfer]) on an existing account", "initialize_account3", "enable_required_transfer_memos (owner signs)"],
+        "post_init": ["memo instruction to MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr (no accounts, UTF-8 data) placed directly before the transfer"],
+        "notes": ["LiteSVM 0.16.0 loads SPL Memo at Memo1UhkJRfHyvLMcVucJwxXeuD728EqVDDwQDxFMNo (spl_memo-1.0.0.so) and MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr (spl_memo-4.0.0.so) by default."]
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["CPI a memo immediately before every outbound transfer (always, or when memo_required(&destination)).", "Do not enable required memos on protocol vaults."],
+        "detection": "account.get_extension::<MemoTransfer>() -> require_incoming_transfer_memos."
+      },
+      "severity": "med",
+      "severity_note": "Recipient-controlled revert of payouts; easy to fix in code.",
+      "priority": "P0",
+      "scenarios": ["MEMO-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#required-memo-on-transfer",
+        "https://www.solana-program.com/docs/token-2022/extensions#reallocate",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/extension/memo_transfer/mod.rs"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "cpi_guard",
+      "name": "CpiGuard",
+      "extension_types": [{"name": "CpiGuard", "index": 11, "side": "account"}],
+      "side": "account",
+      "required_account_extensions": [],
+      "summary": "Owner-enabled account guard that blocks owner-signed transfer/burn, approve, close to a non-owner, and setting a close authority via CPI; owner change is always blocked.",
+      "mutable_by": ["token account owner (enable/disable at top level only; CpiGuardSettingsLocked 0x29 in CPI)"],
+      "breaks": [
+        {"assumption": "cpi_transfer", "failure_mode": "Standard deposit where the program CPIs transfer_checked with the user as authority.", "error": {"name": "CpiGuardTransferBlocked", "code": 42, "hex": "0x2a", "kind": "TokenError"}, "evidence": "src"},
+        {"assumption": "cpi_transfer", "failure_mode": "Program CPIs Approve on the user's account.", "error": {"name": "CpiGuardApproveBlocked", "code": 45, "hex": "0x2d", "kind": "TokenError"}, "evidence": "src"},
+        {"assumption": "close_account", "failure_mode": "Program closes the user's token account via CPI with lamports to a non-owner.", "error": {"name": "CpiGuardCloseAccountBlocked", "code": 44, "hex": "0x2c", "kind": "TokenError"}, "evidence": "src"},
+        {"assumption": "cpi_transfer", "failure_mode": "Program CPIs burn with the owner as authority.", "error": {"name": "CpiGuardBurnBlocked", "code": 43, "hex": "0x2b", "kind": "TokenError"}, "evidence": "src"},
+        {"assumption": "pda_owned_vault", "failure_mode": "SetAuthority(AccountOwner) fails even at top level while the guard is on; top-level transfer and approve succeed.", "error": {"name": "CpiGuardOwnerChangeBlocked", "code": 47, "hex": "0x2f", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": null,
+        "account_space": 171,
+        "ordered_instructions": ["system create_account(space=171)", "initialize_account3", "enable_cpi_guard (owner signs, top level)"],
+        "post_init": ["disable_cpi_guard (owner signs, top level)"],
+        "notes": ["The TLV entry exists only after enable_cpi_guard (extensions [] before, [CpiGuard] after).", "CPI cases need the user's program, which ExtensionLab runs anyway; not executed in this probe."]
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Support a delegate flow: user signs a top-level Approve, program transfers as delegate.", "Or: user does a top-level transfer and the program verifies the vault balance delta."],
+        "detection": "account.get_extension::<CpiGuard>() -> lock_cpi."
+      },
+      "severity": "med",
+      "severity_note": "User-controlled revert of the most common deposit pattern; no custody loss.",
+      "priority": "P0",
+      "scenarios": ["CPIG-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#cpi-guard",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/permanent_delegate.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/tests/authority.rs"]
+    },
+    {
+      "id": "mint_close_authority",
+      "name": "MintCloseAuthority",
+      "extension_types": [{"name": "MintCloseAuthority", "index": 3, "side": "mint"}],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "Close authority can close the mint when supply is 0; the address can then be re-initialized as a different mint.",
+      "mutable_by": ["close authority (CloseAccount on the mint; SetAuthority CloseMint)"],
+      "breaks": [
+        {"assumption": "listing", "failure_mode": "Close with supply > 0 is rejected; with supply 0 the mint disappears while token accounts remain.", "error": {"name": "MintHasSupply", "code": 28, "hex": "0x1c", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cached_mint_validation", "failure_mode": "Mint re-created at the same address with different decimals (6 -> 0) and extensions (+10% fee); old zero-balance accounts accept mint_to under the new mint.", "error": null, "evidence": "probe"},
+        {"assumption": "pda_owned_vault", "failure_mode": "Vault created before resurrection lacks TransferFeeAmount; fee-bearing deposits into it fail.", "error": {"name": "InvalidState", "code": 13, "hex": "0xd", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "listing", "failure_mode": "Re-created mint with DefaultAccountState(Frozen): old accounts stay unfrozen and transfer without being thawed.", "error": null, "evidence": "probe"},
+        {"assumption": "withdraw", "failure_mode": "Re-created mint with a transfer hook: transfers out of old accounts fail.", "error": {"name": "InvalidAccountData", "code": null, "hex": null, "kind": "ProgramError"}, "evidence": "probe"},
+        {"assumption": "listing", "failure_mode": "Re-created NonTransferable mint: mint_to old accounts is blocked.", "error": {"name": "NonTransferableNeedsImmutableOwnership", "code": 38, "hex": "0x26", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 202,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=202)", "initialize_mint_close_authority(Some(authority))", "initialize_mint2"],
+        "post_init": ["close_account(mint, destination, authority) at supply 0", "resurrect: create_account again with the same mint keypair and a different extension set"],
+        "notes": []
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Revalidate mint decimals and extension allowlist on every instruction instead of caching.", "Check that vault account extensions still match the mint's required account extensions.", "Optionally reject mints with a close authority; this alone is not sufficient because a re-created mint need not carry the extension (secondary source)."],
+        "detection": "mint.get_extension::<MintCloseAuthority>() with close_authority.is_some(). Past resurrection is not visible from the current mint alone (unverified)."
+      },
+      "severity": "med",
+      "severity_note": "Stale validation and stranded vaults; frozen-default bypass on resurrected mints.",
+      "priority": "P1",
+      "scenarios": ["MCA-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#mint-close-authority",
+        "https://www.solana-program.com/docs/token-2022/onchain",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/mint.rs"]
+    },
+    {
+      "id": "interest_bearing_config",
+      "name": "InterestBearingConfig",
+      "extension_types": [{"name": "InterestBearingConfig", "index": 10, "side": "mint"}],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "UI amount accrues continuously compounded interest from a basis-point rate; raw amounts never change and no tokens are created.",
+      "mutable_by": ["rate authority (UpdateRate; negative rates accepted)"],
+      "breaks": [
+        {"assumption": "ui_vs_raw_amount", "failure_mode": "Raw balance 1000000000 (6 decimals) unchanged while UI amount went 1000 -> 1051.236557 after one simulated year at 5%.", "error": null, "evidence": "probe"},
+        {"assumption": "amount_math", "failure_mode": "UiAmountToAmount(\"1000\") returned 951260678 raw after that year; storing or pricing in UI amounts drifts.", "error": null, "evidence": "probe"},
+        {"assumption": "amount_math", "failure_mode": "Rate authority set -1000 bps; UI amount then decreased.", "error": null, "evidence": "probe"},
+        {"assumption": "listing", "failure_mode": "Cannot be combined with ScaledUiAmount.", "error": {"name": "InvalidExtensionCombination", "code": 51, "hex": "0x33", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 222,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=222)", "interest_bearing_mint::instruction::initialize(rate_authority, rate_bps)", "initialize_mint2"],
+        "post_init": ["advance Clock.unix_timestamp via svm.set_sysvar::<Clock>", "amount_to_ui_amount returns a UTF-8 string in return data", "update_rate(rate)"],
+        "notes": []
+      },
+      "handling": {
+        "recommendation": "support",
+        "actions": ["Account in raw u64 only; convert to UI at the display edge."],
+        "detection": "mint.get_extension::<InterestBearingConfig>() -> rate_authority, current rate."
+      },
+      "severity": "med",
+      "severity_note": "Low if the protocol never uses UI amounts.",
+      "priority": "P1",
+      "scenarios": ["UI-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#interest-bearing-tokens",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "scaled_ui_amount",
+      "name": "ScaledUiAmount",
+      "extension_types": [{"name": "ScaledUiAmount", "index": 25, "side": "mint"}],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "UI amount equals raw amount times the active multiplier; a new multiplier can be scheduled for a future timestamp.",
+      "mutable_by": ["multiplier authority (UpdateMultiplier with effective timestamp)"],
+      "breaks": [
+        {"assumption": "ui_vs_raw_amount", "failure_mode": "Raw 1000000 unchanged; UI 1 before the scheduled time and 2 after; UiAmountToAmount(\"1\") = 500000 after.", "error": null, "evidence": "probe"},
+        {"assumption": "amount_math", "failure_mode": "Reading only the stored multiplier field is wrong after new_multiplier_effective_timestamp; conversions use floating point and do not round-trip exactly.", "error": null, "evidence": "doc"}
+      ],
+      "litesvm": {
+        "mint_space": 226,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=226)", "scaled_ui_amount::instruction::initialize(authority, multiplier_f64)", "initialize_mint2"],
+        "post_init": ["update_multiplier(new_multiplier, effective_timestamp)", "advance Clock.unix_timestamp"],
+        "notes": []
+      },
+      "handling": {
+        "recommendation": "support",
+        "actions": ["Use raw amounts and non-scaled prices for all calculations.", "Round down when converting user UI input to raw."],
+        "detection": "mint.get_extension::<ScaledUiAmountConfig>()."
+      },
+      "severity": "med",
+      "severity_note": "Low if the protocol never uses UI amounts.",
+      "priority": "P1",
+      "scenarios": ["UI-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#scaled-ui-amount",
+        "https://solana.com/docs/tokens/extensions/scaled-ui-amount",
+        "https://solana.com/docs/tokens/extensions/scaled-ui-amount/integration-guide"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "non_transferable",
+      "name": "NonTransferable",
+      "extension_types": [
+        {"name": "NonTransferable", "index": 9, "side": "mint"},
+        {"name": "NonTransferableAccount", "index": 13, "side": "account"}
+      ],
+      "side": "mint",
+      "required_account_extensions": ["NonTransferableAccount", "ImmutableOwner"],
+      "summary": "Tokens cannot be transferred; owners can still burn and close.",
+      "mutable_by": [],
+      "breaks": [
+        {"assumption": "deposit_credit", "failure_mode": "Any transfer, including deposit, fails.", "error": {"name": "NonTransferable", "code": 37, "hex": "0x25", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "account_sizing", "failure_mode": "A 165-byte account cannot be initialized (needs 174).", "error": {"name": "InvalidAccountData", "code": null, "hex": null, "kind": "ProgramError"}, "evidence": "probe"},
+        {"assumption": "listing", "failure_mode": "mint_to an account lacking ImmutableOwner/NonTransferableAccount fails.", "error": {"name": "NonTransferableNeedsImmutableOwnership", "code": 38, "hex": "0x26", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 170,
+        "account_space": 174,
+        "ordered_instructions": ["system create_account(space=170)", "initialize_non_transferable_mint", "initialize_mint2"],
+        "post_init": [],
+        "notes": ["NonTransferable + ConfidentialTransferMint without ConfidentialMintBurn fails InvalidExtensionCombination (probe). On 10.0.0 the combination is accepted and the mint is created (probe); the rule is in interface 3.1.1's check_for_invalid_mint_extension_combinations, not in 2.1.0 (src)."]
+      },
+      "handling": {
+        "recommendation": "reject",
+        "actions": ["Reject at listing; escrow requires transfers."],
+        "detection": "mint.get_extension::<NonTransferable>() or account NonTransferableAccount."
+      },
+      "severity": "low",
+      "severity_note": "Fails loudly on the first deposit.",
+      "priority": "P1",
+      "scenarios": ["NT-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#non-transferable-tokens",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "immutable_owner",
+      "name": "ImmutableOwner",
+      "extension_types": [{"name": "ImmutableOwner", "index": 7, "side": "account"}],
+      "side": "account",
+      "required_account_extensions": [],
+      "summary": "Token account owner cannot be reassigned; the ATA program always adds it for Token-2022 accounts.",
+      "mutable_by": [],
+      "breaks": [
+        {"assumption": "pda_owned_vault", "failure_mode": "Escrow that reassigns an initializer's token account (or ATA) to a PDA with SetAuthority(AccountOwner) fails; the same call succeeds without the extension.", "error": {"name": "ImmutableOwner", "code": 34, "hex": "0x22", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": null,
+        "account_space": 170,
+        "ordered_instructions": ["system create_account(space=170)", "initialize_immutable_owner", "initialize_account3"],
+        "post_init": [],
+        "notes": ["Or create through the ATA program: data [0] Create, [1] CreateIdempotent. Token-2022 ATA extensions observed: [ImmutableOwner]."]
+      },
+      "handling": {
+        "recommendation": "support",
+        "actions": ["Transfer into program-owned or PDA-owned vault accounts instead of reassigning ownership."],
+        "detection": "account.get_extension::<ImmutableOwner>()."
+      },
+      "severity": "low",
+      "severity_note": "Loud failure; well-known fix.",
+      "priority": "P1",
+      "scenarios": ["IO-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#immutable-owner",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "confidential_transfer",
+      "name": "ConfidentialTransfer (and ConfidentialTransferFee)",
+      "extension_types": [
+        {"name": "ConfidentialTransferMint", "index": 4, "side": "mint"},
+        {"name": "ConfidentialTransferAccount", "index": 5, "side": "account"},
+        {"name": "ConfidentialTransferFeeConfig", "index": 16, "side": "mint"},
+        {"name": "ConfidentialTransferFeeAmount", "index": 17, "side": "account"}
+      ],
+      "side": "mint+account",
+      "required_account_extensions": [],
+      "summary": "Encrypted balances and transfer amounts using ElGamal and ZK proofs; each account must be configured by its owner with a proof.",
+      "mutable_by": ["confidential transfer mint authority (approval policy, auditor key)", "token account owner (configure, enable/disable confidential and non-confidential credits)"],
+      "breaks": [
+        {"assumption": "refund", "failure_mode": "Recipient disabled non-confidential credits; public refund/payout to that account fails.", "error": {"name": "NonConfidentialTransfersDisabled", "code": 49, "hex": "0x31", "kind": "TokenError"}, "evidence": "src"},
+        {"assumption": "close_account", "failure_mode": "Account with non-zero confidential balance cannot be closed until EmptyAccount.", "error": {"name": "ConfidentialTransferAccountHasBalance", "code": 23, "hex": "0x17", "kind": "TokenError"}, "evidence": "src"},
+        {"assumption": "deposit_credit", "failure_mode": "Confidential deposits land in an encrypted pending balance that needs the owner's keys to apply; a program-owned vault cannot use them without off-chain keys.", "error": null, "evidence": "unverified"},
+        {"assumption": "liveness", "failure_mode": "Attacker can exceed maximum_pending_balance_credit_counter on a configured account, blocking incoming confidential transfers.", "error": {"name": "MaximumPendingBalanceCreditCounterExceeded", "code": 39, "hex": "0x27", "kind": "TokenError"}, "evidence": "secondary"},
+        {"assumption": "listing", "failure_mode": "ConfidentialTransferMint + TransferFeeConfig without ConfidentialTransferFeeConfig is rejected.", "error": {"name": "InvalidExtensionCombination", "code": 51, "hex": "0x33", "kind": "TokenError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "None on the public path: transfer_checked between unconfigured accounts works unchanged.", "error": null, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 235,
+        "account_space": 465,
+        "ordered_instructions": ["system create_account(space=235)", "confidential_transfer::instruction::initialize_mint(authority, auto_approve, auditor)", "initialize_mint2"],
+        "post_init": ["ConfigureAccount with a PubkeyValidity proof (instruction offset)", "Deposit / ApplyPendingBalance / Transfer with equality, ciphertext-validity and range proofs in context-state accounts", "compute unit limit 400000"],
+        "notes": ["Full lifecycle exists in the owner's tests/confidential.rs; not re-run here."]
+      },
+      "handling": {
+        "recommendation": "support",
+        "actions": ["Support the public path only; never configure protocol vaults for confidential transfers.", "Treat NonConfidentialTransfersDisabled on payouts as a per-recipient failure (prefer pull-based claims)."],
+        "detection": "mint.get_extension::<ConfidentialTransferMint>(); destination get_extension::<ConfidentialTransferAccount>() non-confidential credits flag."
+      },
+      "severity": "med",
+      "severity_note": "Recipient-controlled payout failures; public path unchanged.",
+      "priority": "P2",
+      "scenarios": ["CT-01"],
+      "sources": [
+        "https://solana.com/docs/tokens/extensions/confidential-transfer",
+        "https://www.solana-program.com/docs/confidential-balances",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/confidential.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/tests/confidential.rs"]
+    },
+    {
+      "id": "metadata_pointer_token_metadata",
+      "name": "MetadataPointer / TokenMetadata",
+      "extension_types": [
+        {"name": "MetadataPointer", "index": 18, "side": "mint"},
+        {"name": "TokenMetadata", "index": 19, "side": "mint"}
+      ],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "Pointer to the account holding metadata (often the mint itself); TokenMetadata stores name/symbol/uri in the mint as a variable-length TLV.",
+      "mutable_by": ["metadata pointer authority", "metadata update authority (field updates; unverified, not probed)"],
+      "breaks": [
+        {"assumption": "listing", "failure_mode": "Pointer to an arbitrary foreign address is accepted; mint and metadata must point to each other or identity can be spoofed.", "error": null, "evidence": "probe"},
+        {"assumption": "account_sizing", "failure_mode": "Mint grows 234 -> 364 bytes on metadata init; Token-2022 reallocates but the account must already hold rent for the new size.", "error": {"name": "InsufficientFundsForRent", "code": null, "hex": null, "kind": "TransactionError"}, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "None: transfer_checked works unchanged.", "error": null, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 234,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=234, lamports=rent(234 + metadata TLV))", "metadata_pointer::instruction::initialize(authority, Some(mint))", "initialize_mint2", "spl_token_metadata_interface::instruction::initialize(program_id=Token-2022, metadata=mint, update_authority, mint, mint_authority, name, symbol, uri)"],
+        "post_init": [],
+        "notes": ["Metadata TLV size = 4 + 32 + 32 + (4+name) + (4+symbol) + (4+uri) + 4 bytes (matched the observed 130-byte growth)."]
+      },
+      "handling": {
+        "recommendation": "support",
+        "actions": ["Ignore for custody; identify tokens by mint address, never by metadata."],
+        "detection": "get_extension::<MetadataPointer>(); get_variable_len_extension::<TokenMetadata>()."
+      },
+      "severity": "low",
+      "severity_note": "Cosmetic for custody flows.",
+      "priority": "P2",
+      "scenarios": ["MD-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#metadata-pointer",
+        "https://www.solana-program.com/docs/token-2022/extensions#metadata",
+        "https://neodyme.io/en/blog/token-2022"
+      ],
+      "local_refs": ["reference/turbin3_q3_26/token22-q326/programs/t22/src/instructions/remittance.rs", "reference/turbin3_q3_26/token22-q326/programs/t22/tests/test_initialize.rs"]
+    },
+    {
+      "id": "group_pointer_member",
+      "name": "GroupPointer / TokenGroup / GroupMemberPointer / TokenGroupMember",
+      "extension_types": [
+        {"name": "GroupPointer", "index": 20, "side": "mint"},
+        {"name": "TokenGroup", "index": 21, "side": "mint"},
+        {"name": "GroupMemberPointer", "index": 22, "side": "mint"},
+        {"name": "TokenGroupMember", "index": 23, "side": "mint"}
+      ],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "Collection configuration: group mints and member mints that point to them.",
+      "mutable_by": ["group pointer / member pointer authorities", "group update authority"],
+      "breaks": [
+        {"assumption": "listing", "failure_mode": "Group max_size enforced: third member with max_size 2 fails.", "error": {"name": "SizeExceedsMaxSize", "code": 3406457177, "hex": "0xcb0a6959", "kind": "TokenGroupError"}, "evidence": "probe"},
+        {"assumption": "account_sizing", "failure_mode": "Group mint grows 234 -> 318 bytes on initialize_group; needs pre-funded rent.", "error": null, "evidence": "probe"},
+        {"assumption": "cpi_transfer", "failure_mode": "None: process_transfer has no group checks.", "error": null, "evidence": "src"}
+      ],
+      "litesvm": {
+        "mint_space": 234,
+        "account_space": 165,
+        "ordered_instructions": ["group mint: create_account, group_pointer::instruction::initialize(authority, Some(mint)), initialize_mint2, spl_token_group_interface::instruction::initialize_group(program_id=Token-2022, group=mint, mint, mint_authority, update_authority, max_size)", "member mint: create_account, group_member_pointer::instruction::initialize(authority, Some(mint)), initialize_mint2, initialize_member(Token-2022, member, member_mint, member_mint_authority, group, group_update_authority)"],
+        "post_init": [],
+        "notes": ["Fund extra lamports for the post-init growth."]
+      },
+      "handling": {
+        "recommendation": "support",
+        "actions": ["Ignore for escrows."],
+        "detection": "get_extension::<GroupPointer>() / <TokenGroup>() / <GroupMemberPointer>() / <TokenGroupMember>()."
+      },
+      "severity": "low",
+      "severity_note": "No custody impact.",
+      "priority": "P2",
+      "scenarios": ["GRP-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#group-pointer",
+        "https://www.solana-program.com/docs/token-2022/extensions#group",
+        "https://www.solana-program.com/docs/token-2022/extensions#member-pointer",
+        "https://www.solana-program.com/docs/token-2022/extensions#member"
+      ],
+      "local_refs": []
+    },
+    {
+      "id": "permissioned_burn",
+      "name": "PermissionedBurn",
+      "extension_types": [{"name": "PermissionedBurn", "index": 28, "side": "mint"}],
+      "side": "mint",
+      "required_account_extensions": [],
+      "summary": "Every burn needs the burn authority's co-signature; standard Burn and BurnChecked are rejected. Not in the original brief; included because it is in program v11.",
+      "mutable_by": ["permissioned burn authority (SetAuthority PermissionedBurn; None restores standard burns per docs)"],
+      "breaks": [
+        {"assumption": "withdraw", "failure_mode": "Protocols that burn (redemption, burn-on-withdraw) using standard BurnChecked fail; the permissioned burn instruction with co-signature succeeds.", "error": {"name": "InvalidInstruction", "code": 12, "hex": "0xc", "kind": "TokenError"}, "evidence": "probe"}
+      ],
+      "litesvm": {
+        "mint_space": 202,
+        "account_space": 165,
+        "ordered_instructions": ["system create_account(space=202)", "permissioned_burn::instruction::initialize(authority)", "initialize_mint2"],
+        "post_init": ["permissioned_burn::instruction::burn_checked(account, mint, burn_authority, owner, ...)"],
+        "notes": ["On 10.0.0 the extension does not exist: its initializer (instruction 46) fails with InvalidInstruction 0xc, so no such mint can be created and the burn results were not re-run (probe). Interface 2.1.0 has no permissioned_burn module."]
+      },
+      "handling": {
+        "recommendation": "special_case",
+        "actions": ["Reject for burn-based designs; no change for pure escrows."],
+        "detection": "mint.get_extension::<PermissionedBurnConfig>()."
+      },
+      "severity": "low",
+      "severity_note": "Low for escrows; med for burn-based protocols.",
+      "priority": "P2",
+      "scenarios": ["PB-01"],
+      "sources": [
+        "https://www.solana-program.com/docs/token-2022/extensions#permissioned-burn",
+        "https://github.com/solana-program/token-2022/blob/3d94b2fa6bf4369f4eb98ea69c188726b05ad64c/program/src/processor.rs"
+      ],
+      "local_refs": []
+    }
+  ],
+  "cross_cutting": [
+    {"id": "dormant_switches", "finding": "Extension presence is not activity: hook program, fee rate, pause flag, default state, permanent delegate, rate and multiplier can change after a protocol accepts the mint. Detection must read the config and whether an authority exists.", "evidence": "probe"},
+    {"id": "real_mint_example", "finding": "PYUSD mint 2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo (mainnet, read 2026-10-21, slot ~459697278) carries PermanentDelegate (set), TransferFeeConfig (0 bps, authority set), TransferHook (program null, authority set), MintCloseAuthority (set), ConfidentialTransferMint, ConfidentialTransferFeeConfig, MetadataPointer, TokenMetadata and a freeze authority.", "evidence": "probe", "source": "https://explorer.solana.com/address/2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo"},
+    {"id": "account_sizing", "finding": "Mint extensions force account extensions at InitializeAccount; hardcoded 165-byte vaults fail with InvalidAccountData. GetAccountDataSize for a TransferFee+Pausable+TransferHook mint returned 187 (191 with ImmutableOwner); the ATA was 191 bytes.", "evidence": "probe"},
+    {"id": "legacy_transfer", "finding": "Legacy Transfer fails with MintRequiredForTransfer (0x1f) on accounts with TransferFeeAmount, TransferHookAccount or PausableAccount.", "evidence": "probe"},
+    {"id": "mint_resurrection", "finding": "Closed mints can be re-created at the same address with different config; old accounts keep working with surprising results (frozen-default bypass, stranded fee-less vaults).", "evidence": "probe"},
+    {"id": "init_ordering", "finding": "Mint extensions (except TokenMetadata/TokenGroup/TokenGroupMember) must be initialized after create_account and before InitializeMint2; violations and unreserved/unused space fail with InvalidAccountData.", "evidence": "probe"}
+  ],
+  "account_sizes": {
+    "base_mint": 82,
+    "base_account": 165,
+    "mint_with_single_extension": {
+      "TransferFeeConfig": 278, "MintCloseAuthority": 202, "ConfidentialTransferMint": 235, "DefaultAccountState": 171,
+      "NonTransferable": 170, "InterestBearingConfig": 222, "PermanentDelegate": 202, "TransferHook": 234,
+      "ConfidentialTransferFeeConfig": 299, "MetadataPointer": 234, "GroupPointer": 234, "TokenGroup": 250,
+      "GroupMemberPointer": 234, "TokenGroupMember": 242, "ScaledUiAmount": 226, "Pausable": 203, "PermissionedBurn": 202,
+      "TokenMetadata": null
+    },
+    "account_with_single_extension": {
+      "TransferFeeAmount": 178, "ImmutableOwner": 170, "MemoTransfer": 171, "CpiGuard": 171, "NonTransferableAccount": 170,
+      "TransferHookAccount": 171, "PausableAccount": 170, "ConfidentialTransferAccount": 465, "ConfidentialTransferFeeAmount": 234
+    },
+    "evidence": "probe",
+    "notes": ["Same on interface 2.1.0 for every type it has. PermissionedBurn is not in interface 2.1.0 or Token-2022 10.0.0."]
+  },
+  "first_scenarios": [
+    {"id": "TF-01", "priority": "P0", "extension": "transfer_fee_config", "setup": "100 bps fee mint; deposit then full withdraw", "expect": "credited 10000, vault 9900; last withdraw InsufficientFunds", "needs": []},
+    {"id": "TF-02", "priority": "P0", "extension": "transfer_fee_config", "setup": "fee mint; empty vault then close", "expect": "AccountHasWithheldTransferFees until harvest", "needs": []},
+    {"id": "TF-03", "priority": "P0", "extension": "transfer_fee_config", "setup": "fee raised mid-escrow; warp 2 epochs", "expect": "payout differs from quote; FeeMismatch with transfer_checked_with_fee", "needs": ["clock epoch warp"]},
+    {"id": "HOOK-01", "priority": "P0", "extension": "transfer_hook", "setup": "always-allow hook; protocol CPI without extra accounts", "expect": "MissingAccount", "needs": ["hook program .so (to be built)"]},
+    {"id": "HOOK-02", "priority": "P0", "extension": "transfer_hook", "setup": "hook None at deposit, switched on before withdraw", "expect": "withdraw fails", "needs": ["hook program .so (to be built)"]},
+    {"id": "HOOK-03", "priority": "P0", "extension": "transfer_hook", "setup": "deny-all or deny-recipient hook", "expect": "withdraw/refund reverts with the hook's error", "needs": ["hook program .so (to be built)"]},
+    {"id": "PD-01", "priority": "P0", "extension": "permanent_delegate", "setup": "delegate drains vault after deposits", "expect": "liabilities exceed vault balance; later withdrawals fail", "needs": []},
+    {"id": "PAUSE-01", "priority": "P0", "extension": "pausable", "setup": "mint paused during refund window", "expect": "MintPaused; timeout logic misfires", "needs": []},
+    {"id": "DAS-01", "priority": "P0", "extension": "default_account_state_frozen", "setup": "program creates vault and deposits", "expect": "AccountFrozen", "needs": []},
+    {"id": "DAS-02", "priority": "P0", "extension": "default_account_state_frozen", "setup": "freeze authority freezes vault after deposits", "expect": "withdraw AccountFrozen", "needs": []},
+    {"id": "MEMO-01", "priority": "P0", "extension": "memo_transfer", "setup": "user enables required memo on own account; protocol refunds", "expect": "NoMemo", "needs": []},
+    {"id": "CPIG-01", "priority": "P0", "extension": "cpi_guard", "setup": "user source has CPI Guard on; protocol CPI deposit signed by user", "expect": "CpiGuardTransferBlocked", "needs": ["user program"]},
+    {"id": "MCA-01", "priority": "P1", "extension": "mint_close_authority", "setup": "resurrect mint with different config", "expect": "frozen-default bypass; stranded vault InvalidState", "needs": []},
+    {"id": "IO-01", "priority": "P1", "extension": "immutable_owner", "setup": "escrow uses SetAuthority(AccountOwner) on a Token-2022 ATA", "expect": "ImmutableOwner", "needs": []},
+    {"id": "NT-01", "priority": "P1", "extension": "non_transferable", "setup": "list a non-transferable mint", "expect": "should be rejected; deposit NonTransferable", "needs": []},
+    {"id": "UI-01", "priority": "P1", "extension": "interest_bearing_config|scaled_ui_amount", "setup": "compare UI-based vs raw-based accounting over time", "expect": "UI-based accounting drifts", "needs": ["clock timestamp warp"]},
+    {"id": "CT-01", "priority": "P2", "extension": "confidential_transfer", "setup": "recipient disables non-confidential credits", "expect": "NonConfidentialTransfersDisabled", "needs": ["ZK proof generation"]},
+    {"id": "MD-01", "priority": "P2", "extension": "metadata_pointer_token_metadata", "setup": "spoofed metadata pointer", "expect": "identity by metadata is wrong", "needs": []},
+    {"id": "GRP-01", "priority": "P2", "extension": "group_pointer_member", "setup": "exceed group max_size", "expect": "SizeExceedsMaxSize", "needs": []},
+    {"id": "PB-01", "priority": "P2", "extension": "permissioned_burn", "setup": "burn-based redemption", "expect": "InvalidInstruction", "needs": []}
+  ],
+  "error_codes": [
+    {"code": 1, "hex": "0x1", "name": "InsufficientFunds", "evidence": "probe"},
+    {"code": 12, "hex": "0xc", "name": "InvalidInstruction", "evidence": "probe", "note": "PermissionedBurn; on 10.0.0, from its initializer"},
+    {"code": 13, "hex": "0xd", "name": "InvalidState", "evidence": "probe"},
+    {"code": 16, "hex": "0x10", "name": "MintCannotFreeze", "evidence": "probe"},
+    {"code": 17, "hex": "0x11", "name": "AccountFrozen", "evidence": "probe"},
+    {"code": 23, "hex": "0x17", "name": "ConfidentialTransferAccountHasBalance", "evidence": "src"},
+    {"code": 28, "hex": "0x1c", "name": "MintHasSupply", "evidence": "probe"},
+    {"code": 31, "hex": "0x1f", "name": "MintRequiredForTransfer", "evidence": "probe"},
+    {"code": 32, "hex": "0x20", "name": "FeeMismatch", "evidence": "probe"},
+    {"code": 34, "hex": "0x22", "name": "ImmutableOwner", "evidence": "probe"},
+    {"code": 35, "hex": "0x23", "name": "AccountHasWithheldTransferFees", "evidence": "probe"},
+    {"code": 36, "hex": "0x24", "name": "NoMemo", "evidence": "probe"},
+    {"code": 37, "hex": "0x25", "name": "NonTransferable", "evidence": "probe"},
+    {"code": 38, "hex": "0x26", "name": "NonTransferableNeedsImmutableOwnership", "evidence": "probe"},
+    {"code": 39, "hex": "0x27", "name": "MaximumPendingBalanceCreditCounterExceeded", "evidence": "src"},
+    {"code": 41, "hex": "0x29", "name": "CpiGuardSettingsLocked", "evidence": "src"},
+    {"code": 42, "hex": "0x2a", "name": "CpiGuardTransferBlocked", "evidence": "src"},
+    {"code": 43, "hex": "0x2b", "name": "CpiGuardBurnBlocked", "evidence": "src"},
+    {"code": 44, "hex": "0x2c", "name": "CpiGuardCloseAccountBlocked", "evidence": "src"},
+    {"code": 45, "hex": "0x2d", "name": "CpiGuardApproveBlocked", "evidence": "src"},
+    {"code": 46, "hex": "0x2e", "name": "CpiGuardSetAuthorityBlocked", "evidence": "src"},
+    {"code": 47, "hex": "0x2f", "name": "CpiGuardOwnerChangeBlocked", "evidence": "probe"},
+    {"code": 49, "hex": "0x31", "name": "NonConfidentialTransfersDisabled", "evidence": "src"},
+    {"code": 51, "hex": "0x33", "name": "InvalidExtensionCombination", "evidence": "probe"},
+    {"code": 67, "hex": "0x43", "name": "MintPaused", "evidence": "probe"}
+  ],
+  "error_code_source": "https://docs.rs/spl-token-2022-interface/3.1.1/spl_token_2022_interface/error/enum.TokenError.html"
+}

@@ -1,0 +1,946 @@
+//! Throwaway LiteSVM probe for the ExtensionLab extension matrix.
+//! Host-side only: drives the Token-2022 v11.0.0 ELF bundled in litesvm 0.16.0.
+//! Every PROBE line printed below is an observed result, not a claim.
+#![allow(deprecated)]
+
+use litesvm::{
+    types::{FailedTransactionMetadata, TransactionMetadata},
+    LiteSVM,
+};
+use solana_address::Address;
+use solana_clock::Clock;
+use solana_instruction::{AccountMeta, Instruction};
+use solana_keypair::Keypair;
+use solana_message::Message;
+use solana_signer::Signer;
+use solana_transaction::Transaction;
+use spl_token_2022_interface::{
+    self as t22,
+    extension::{
+        confidential_transfer, cpi_guard, default_account_state, group_member_pointer,
+        group_pointer, interest_bearing_mint, memo_transfer, metadata_pointer, pausable,
+        scaled_ui_amount, transfer_fee, transfer_fee::TransferFeeAmount, transfer_hook,
+        BaseStateWithExtensions, ExtensionType as E, StateWithExtensions,
+    },
+    instruction as ti,
+    state::{Account, AccountState, Mint},
+};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+const T22: Address = t22::ID;
+
+const TOKEN_ERRORS: [&str; 69] = [
+    "NotRentExempt", "InsufficientFunds", "InvalidMint", "MintMismatch", "OwnerMismatch",
+    "FixedSupply", "AlreadyInUse", "InvalidNumberOfProvidedSigners",
+    "InvalidNumberOfRequiredSigners", "UninitializedState", "NativeNotSupported",
+    "NonNativeHasBalance", "InvalidInstruction", "InvalidState", "Overflow",
+    "AuthorityTypeNotSupported", "MintCannotFreeze", "AccountFrozen", "MintDecimalsMismatch",
+    "NonNativeNotSupported", "ExtensionTypeMismatch", "ExtensionBaseMismatch",
+    "ExtensionAlreadyInitialized", "ConfidentialTransferAccountHasBalance",
+    "ConfidentialTransferAccountNotApproved", "ConfidentialTransferDepositsAndTransfersDisabled",
+    "ConfidentialTransferElGamalPubkeyMismatch", "ConfidentialTransferBalanceMismatch",
+    "MintHasSupply", "NoAuthorityExists", "TransferFeeExceedsMaximum", "MintRequiredForTransfer",
+    "FeeMismatch", "FeeParametersMismatch", "ImmutableOwner", "AccountHasWithheldTransferFees",
+    "NoMemo", "NonTransferable", "NonTransferableNeedsImmutableOwnership",
+    "MaximumPendingBalanceCreditCounterExceeded", "MaximumDepositAmountExceeded",
+    "CpiGuardSettingsLocked", "CpiGuardTransferBlocked", "CpiGuardBurnBlocked",
+    "CpiGuardCloseAccountBlocked", "CpiGuardApproveBlocked", "CpiGuardSetAuthorityBlocked",
+    "CpiGuardOwnerChangeBlocked", "ExtensionNotFound", "NonConfidentialTransfersDisabled",
+    "ConfidentialTransferFeeAccountHasWithheldFee", "InvalidExtensionCombination",
+    "InvalidLengthForAlloc", "AccountDecryption", "ProofGeneration",
+    "InvalidProofInstructionOffset", "HarvestToMintDisabled",
+    "SplitProofContextStateAccountsNotSupported", "NotEnoughProofContextStateAccounts",
+    "MalformedCiphertext", "CiphertextArithmeticFailed", "PedersenCommitmentMismatch",
+    "RangeProofLengthMismatch", "IllegalBitLength", "FeeCalculation", "IllegalMintBurnConversion",
+    "InvalidScale", "MintPaused", "PendingBalanceNonZero",
+];
+
+fn addr(s: &str) -> Address {
+    s.parse().unwrap()
+}
+fn memo_program() -> Address {
+    addr("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr")
+}
+fn ata_program() -> Address {
+    addr("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+}
+fn memo_ix(text: &str) -> Instruction {
+    Instruction { program_id: memo_program(), accounts: vec![], data: text.as_bytes().to_vec() }
+}
+
+struct Ctx {
+    svm: LiteSVM,
+    payer: Keypair,
+}
+
+fn describe(e: &FailedTransactionMetadata) -> String {
+    let raw = format!("{:?}", e.err);
+    let mut name = String::new();
+    if let Some(pos) = raw.find("Custom(") {
+        let rest = &raw[pos + 7..];
+        if let Some(end) = rest.find(')') {
+            if let Ok(n) = rest[..end].parse::<usize>() {
+                let t22_failed = e
+                    .meta
+                    .logs
+                    .iter()
+                    .any(|l| l.contains("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed"));
+                if t22_failed && n < TOKEN_ERRORS.len() {
+                    name = format!(" => TokenError::{} (0x{:x})", TOKEN_ERRORS[n], n);
+                }
+            }
+        }
+    }
+    let last: Vec<&String> = e
+        .meta
+        .logs
+        .iter()
+        .filter(|l| l.contains("Error") || l.contains("failed") || l.contains("Warning"))
+        .collect();
+    format!("{raw}{name} | logs: {last:?}")
+}
+
+impl Ctx {
+    fn new() -> Self {
+        let mut svm = LiteSVM::new();
+        let payer = Keypair::new();
+        svm.airdrop(&payer.pubkey(), 1_000_000_000_000).unwrap();
+        Ctx { svm, payer }
+    }
+    fn p(&self) -> Address {
+        self.payer.pubkey()
+    }
+    fn send(
+        &mut self,
+        ixs: &[Instruction],
+        signers: &[&Keypair],
+    ) -> Result<TransactionMetadata, FailedTransactionMetadata> {
+        let mut all: Vec<&Keypair> = vec![&self.payer];
+        all.extend_from_slice(signers);
+        self.svm.expire_blockhash();
+        let bh = self.svm.latest_blockhash();
+        let tx = Transaction::new(&all, Message::new(ixs, Some(&self.payer.pubkey())), bh);
+        self.svm.send_transaction(tx)
+    }
+    fn ok(&mut self, label: &str, ixs: &[Instruction], signers: &[&Keypair]) -> TransactionMetadata {
+        match self.send(ixs, signers) {
+            Ok(m) => m,
+            Err(e) => panic!("setup step '{label}' failed: {}\n{:#?}", describe(&e), e.meta.logs),
+        }
+    }
+    fn probe(
+        &mut self,
+        label: &str,
+        ixs: &[Instruction],
+        signers: &[&Keypair],
+    ) -> Result<TransactionMetadata, String> {
+        match self.send(ixs, signers) {
+            Ok(m) => {
+                println!("PROBE {label}: OK");
+                Ok(m)
+            }
+            Err(e) => {
+                let d = describe(&e);
+                println!("PROBE {label}: FAIL {d}");
+                Err(d)
+            }
+        }
+    }
+    fn mint_ixs(
+        &self,
+        mint: &Address,
+        exts: &[E],
+        pre: Vec<Instruction>,
+        decimals: u8,
+        freeze: bool,
+        extra_rent_bytes: usize,
+    ) -> Vec<Instruction> {
+        let space = E::try_calculate_account_len::<Mint>(exts).unwrap();
+        let lamports = self.svm.minimum_balance_for_rent_exemption(space + extra_rent_bytes);
+        let mut v = vec![solana_system_interface::instruction::create_account(
+            &self.p(),
+            mint,
+            lamports,
+            space as u64,
+            &T22,
+        )];
+        v.extend(pre);
+        let fa = self.p();
+        v.push(
+            ti::initialize_mint2(&T22, mint, &self.p(), if freeze { Some(&fa) } else { None }, decimals)
+                .unwrap(),
+        );
+        v
+    }
+    fn mint(&mut self, exts: &[E], pre: Vec<Instruction>, decimals: u8, freeze: bool) -> Keypair {
+        let mint = Keypair::new();
+        let ixs = self.mint_ixs(&mint.pubkey(), exts, pre, decimals, freeze, 0);
+        self.ok("create mint", &ixs, &[&mint]);
+        mint
+    }
+    fn mint_exts(&self, mint: &Address) -> Vec<E> {
+        let d = self.svm.get_account(mint).unwrap().data;
+        StateWithExtensions::<Mint>::unpack(&d).unwrap().get_extension_types().unwrap()
+    }
+    fn account_ixs(
+        &self,
+        acct: &Address,
+        mint: &Address,
+        owner: &Address,
+        extra: &[E],
+        pre_init: Vec<Instruction>,
+        size_override: Option<usize>,
+    ) -> Vec<Instruction> {
+        let mut exts = E::get_required_init_account_extensions(&self.mint_exts(mint));
+        for e in extra {
+            if !exts.contains(e) {
+                exts.push(*e);
+            }
+        }
+        let space = size_override
+            .unwrap_or_else(|| E::try_calculate_account_len::<Account>(&exts).unwrap());
+        let lamports = self.svm.minimum_balance_for_rent_exemption(space);
+        let mut v = vec![solana_system_interface::instruction::create_account(
+            &self.p(),
+            acct,
+            lamports,
+            space as u64,
+            &T22,
+        )];
+        v.extend(pre_init);
+        v.push(ti::initialize_account3(&T22, acct, mint, owner).unwrap());
+        v
+    }
+    fn account(&mut self, mint: &Address, owner: &Address, extra: &[E]) -> Address {
+        let k = Keypair::new();
+        let pre = if extra.contains(&E::ImmutableOwner) {
+            vec![ti::initialize_immutable_owner(&T22, &k.pubkey()).unwrap()]
+        } else {
+            vec![]
+        };
+        let ixs = self.account_ixs(&k.pubkey(), mint, owner, extra, pre, None);
+        self.ok("create token account", &ixs, &[&k]);
+        k.pubkey()
+    }
+    fn mint_to(&mut self, mint: &Address, to: &Address, amount: u64) {
+        let ix = ti::mint_to(&T22, mint, to, &self.p(), &[], amount).unwrap();
+        self.ok("mint_to", &[ix], &[]);
+    }
+    fn bal(&self, a: &Address) -> u64 {
+        let d = self.svm.get_account(a).unwrap().data;
+        StateWithExtensions::<Account>::unpack(&d).unwrap().base.amount
+    }
+    fn withheld(&self, a: &Address) -> u64 {
+        let d = self.svm.get_account(a).unwrap().data;
+        StateWithExtensions::<Account>::unpack(&d)
+            .unwrap()
+            .get_extension::<TransferFeeAmount>()
+            .map(|e| u64::from(e.withheld_amount))
+            .unwrap_or(0)
+    }
+    fn acct_exts(&self, a: &Address) -> Vec<E> {
+        let d = self.svm.get_account(a).unwrap().data;
+        StateWithExtensions::<Account>::unpack(&d).unwrap().get_extension_types().unwrap()
+    }
+    fn is_frozen(&self, a: &Address) -> bool {
+        let d = self.svm.get_account(a).unwrap().data;
+        StateWithExtensions::<Account>::unpack(&d).unwrap().base.is_frozen()
+    }
+    fn ui(&mut self, mint: &Address, amount: u64) -> String {
+        let m = self.ok(
+            "amount_to_ui_amount",
+            &[ti::amount_to_ui_amount(&T22, mint, amount).unwrap()],
+            &[],
+        );
+        String::from_utf8(m.return_data.data).unwrap()
+    }
+    fn ui_to_amount(&mut self, mint: &Address, ui: &str) -> u64 {
+        let m = self.ok(
+            "ui_amount_to_amount",
+            &[ti::ui_amount_to_amount(&T22, mint, ui).unwrap()],
+            &[],
+        );
+        u64::from_le_bytes(m.return_data.data[..8].try_into().unwrap())
+    }
+    fn warp(&mut self, secs: i64, epochs: u64) {
+        let mut c: Clock = self.svm.get_sysvar::<Clock>();
+        c.unix_timestamp += secs;
+        c.epoch += epochs;
+        c.slot += 1;
+        self.svm.set_sysvar::<Clock>(&c);
+    }
+    #[allow(clippy::too_many_arguments)]
+    fn xfer(&self, src: &Address, mint: &Address, dst: &Address, auth: &Address, amount: u64, decimals: u8) -> Instruction {
+        ti::transfer_checked(&T22, src, mint, dst, auth, &[], amount, decimals).unwrap()
+    }
+}
+
+fn s0_sizes() {
+    let mint_exts = [
+        E::TransferFeeConfig, E::MintCloseAuthority, E::ConfidentialTransferMint,
+        E::DefaultAccountState, E::NonTransferable, E::InterestBearingConfig, E::PermanentDelegate,
+        E::TransferHook, E::ConfidentialTransferFeeConfig, E::MetadataPointer, E::GroupPointer,
+        E::TokenGroup, E::GroupMemberPointer, E::TokenGroupMember, E::ScaledUiAmount, E::Pausable,
+        E::PermissionedBurn, E::TokenMetadata,
+    ];
+    for e in mint_exts {
+        let len = E::try_calculate_account_len::<Mint>(&[e]);
+        let req = E::get_required_init_account_extensions(&[e]);
+        let req_len = E::try_calculate_account_len::<Account>(&req).unwrap();
+        println!("SIZE mint+{e:?} = {len:?}; required account exts {req:?}; account len {req_len}");
+    }
+    let acct_exts = [
+        E::TransferFeeAmount, E::ImmutableOwner, E::MemoTransfer, E::CpiGuard,
+        E::NonTransferableAccount, E::TransferHookAccount, E::PausableAccount,
+        E::ConfidentialTransferAccount, E::ConfidentialTransferFeeAmount,
+    ];
+    for e in acct_exts {
+        println!("SIZE account+{e:?} = {:?}", E::try_calculate_account_len::<Account>(&[e]));
+    }
+    for e in [E::TransferFeeConfig, E::TransferFeeAmount, E::MintCloseAuthority, E::ConfidentialTransferMint, E::ConfidentialTransferAccount, E::DefaultAccountState, E::ImmutableOwner, E::MemoTransfer, E::NonTransferable, E::InterestBearingConfig, E::CpiGuard, E::PermanentDelegate, E::NonTransferableAccount, E::TransferHook, E::TransferHookAccount, E::ConfidentialTransferFeeConfig, E::ConfidentialTransferFeeAmount, E::MetadataPointer, E::TokenMetadata, E::GroupPointer, E::TokenGroup, E::GroupMemberPointer, E::TokenGroupMember, E::ConfidentialMintBurn, E::ScaledUiAmount, E::Pausable, E::PausableAccount, E::PermissionedBurn] {
+        print!("{e:?}={} ", e as u16);
+    }
+    println!();
+    println!(
+        "SIZE base mint = {:?}, base account = {:?}",
+        E::try_calculate_account_len::<Mint>(&[]),
+        E::try_calculate_account_len::<Account>(&[])
+    );
+}
+
+fn s1_transfer_fee() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = transfer_fee::instruction::initialize_transfer_fee_config(&T22, &m, Some(&p), Some(&p), 100, 5_000).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::TransferFeeConfig], vec![init], 6, false, 0);
+    c.ok("tf mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let vault_auth = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &vault_auth.pubkey(), &[]);
+    let b = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("INFO tf vault account exts {:?}, len {}", c.acct_exts(&v), c.svm.get_account(&v).unwrap().data.len());
+    c.mint_to(&m, &a, 10_000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 10_000, 6);
+    c.probe("tf deposit 10000 transfer_checked", &[ix], &[&alice]).ok();
+    println!("PROBE tf after deposit: alice={} vault={} vault_withheld={}", c.bal(&a), c.bal(&v), c.withheld(&v));
+    let ix = c.xfer(&v, &m, &a, &vault_auth.pubkey(), 10_000, 6);
+    c.probe("tf withdraw recorded 10000 from vault", &[ix], &[&vault_auth]).ok();
+    let ix = c.xfer(&v, &m, &a, &vault_auth.pubkey(), 9_900, 6);
+    c.probe("tf withdraw actual 9900 from vault", &[ix], &[&vault_auth]).ok();
+    println!("PROBE tf after withdraw: alice={} vault={} alice_withheld={} vault_withheld={}", c.bal(&a), c.bal(&v), c.withheld(&a), c.withheld(&v));
+    let ix = ti::transfer(&T22, &a, &b, &alice.pubkey(), &[], 10).unwrap();
+    c.probe("tf legacy Transfer (no mint)", &[ix], &[&alice]).ok();
+    let ix = transfer_fee::instruction::transfer_checked_with_fee(&T22, &a, &m, &b, &alice.pubkey(), &[], 1_000, 6, 0).unwrap();
+    c.probe("tf transfer_checked_with_fee wrong fee=0", &[ix], &[&alice]).ok();
+    let ix = c.xfer(&a, &m, &b, &alice.pubkey(), 1, 6);
+    c.probe("tf transfer amount=1", &[ix], &[&alice]).ok();
+    println!("PROBE tf after amount=1: bob={} bob_withheld={}", c.bal(&b), c.withheld(&b));
+    let ix = ti::close_account(&T22, &v, &p, &vault_auth.pubkey(), &[]).unwrap();
+    c.probe("tf close vault with balance 0 and withheld>0", &[ix], &[&vault_auth]).ok();
+    let ix = transfer_fee::instruction::harvest_withheld_tokens_to_mint(&T22, &m, &[&v]).unwrap();
+    c.probe("tf harvest vault withheld to mint (payer only signs)", &[ix], &[]).ok();
+    let ix = ti::close_account(&T22, &v, &p, &vault_auth.pubkey(), &[]).unwrap();
+    c.probe("tf close vault after harvest", &[ix], &[&vault_auth]).ok();
+    let ix = transfer_fee::instruction::set_transfer_fee(&T22, &m, &p, &[], 500, 5_000).unwrap();
+    c.probe("tf set_transfer_fee 500 bps", &[ix], &[]).ok();
+    for (label, ep) in [("right after fee change", 0u64), ("at epoch+1", 1), ("at epoch+2", 1)] {
+        c.warp(0, ep);
+        let before = c.bal(&b);
+        let ix = c.xfer(&a, &m, &b, &alice.pubkey(), 1_000, 6);
+        c.probe(&format!("tf transfer 1000 {label}"), &[ix], &[&alice]).ok();
+        println!("PROBE tf credited for 1000 {label} = {}", c.bal(&b) - before);
+    }
+    let k = Keypair::new();
+    let ixs = c.account_ixs(&k.pubkey(), &m, &p, &[], vec![], Some(165));
+    c.probe("tf InitializeAccount3 on 165-byte account", &ixs, &[&k]).ok();
+}
+
+fn s2_default_frozen() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = default_account_state::instruction::initialize_default_account_state(&T22, &m, &AccountState::Frozen).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::DefaultAccountState], vec![init], 6, false, 0);
+    c.probe("das frozen mint WITHOUT freeze authority", &ixs, &[&mint]).ok();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = default_account_state::instruction::initialize_default_account_state(&T22, &m, &AccountState::Frozen).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::DefaultAccountState], vec![init], 6, true, 0);
+    c.ok("das mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let vault_auth = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &vault_auth.pubkey(), &[]);
+    println!("PROBE das new accounts frozen: alice={} vault={}", c.is_frozen(&a), c.is_frozen(&v));
+    let ix = ti::mint_to(&T22, &m, &a, &p, &[], 1000).unwrap();
+    c.probe("das mint_to frozen account", &[ix], &[]).ok();
+    c.ok("thaw alice", &[ti::thaw_account(&T22, &a, &m, &p, &[]).unwrap()], &[]);
+    c.mint_to(&m, &a, 1000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 500, 6);
+    c.probe("das deposit into frozen vault", &[ix], &[&alice]).ok();
+    c.ok("thaw vault", &[ti::thaw_account(&T22, &v, &m, &p, &[]).unwrap()], &[]);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 500, 6);
+    c.probe("das deposit after thaw", &[ix], &[&alice]).ok();
+    c.ok("freeze vault", &[ti::freeze_account(&T22, &v, &m, &p, &[]).unwrap()], &[]);
+    let ix = c.xfer(&v, &m, &a, &vault_auth.pubkey(), 500, 6);
+    c.probe("das withdraw from vault frozen later by freeze authority", &[ix], &[&vault_auth]).ok();
+    let ix = default_account_state::instruction::update_default_account_state(&T22, &m, &p, &[], &AccountState::Initialized).unwrap();
+    c.probe("das update default to Initialized by freeze authority", &[ix], &[]).ok();
+    let n = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("PROBE das account created after update frozen={}", c.is_frozen(&n));
+}
+
+fn s3_non_transferable() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = ti::initialize_non_transferable_mint(&T22, &m).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::NonTransferable], vec![init], 6, false, 0);
+    c.ok("nt mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("INFO nt account exts {:?}", c.acct_exts(&a));
+    c.mint_to(&m, &a, 1000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 1000, 6);
+    c.probe("nt deposit transfer_checked", &[ix], &[&alice]).ok();
+    let ix = ti::burn_checked(&T22, &a, &m, &alice.pubkey(), &[], 1000, 6).unwrap();
+    c.probe("nt owner burn", &[ix], &[&alice]).ok();
+    let ix = ti::close_account(&T22, &a, &p, &alice.pubkey(), &[]).unwrap();
+    c.probe("nt owner close after burn", &[ix], &[&alice]).ok();
+    let k = Keypair::new();
+    let ixs = c.account_ixs(&k.pubkey(), &m, &p, &[], vec![], Some(165));
+    c.probe("nt InitializeAccount3 on 165-byte account", &ixs, &[&k]).ok();
+}
+
+fn s4_memo() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let m = c.mint(&[], vec![], 6, false).pubkey();
+    let alice = Keypair::new();
+    let vault_auth = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &vault_auth.pubkey(), &[E::MemoTransfer]);
+    c.ok(
+        "enable memo on vault",
+        &[memo_transfer::instruction::enable_required_transfer_memos(&T22, &v, &vault_auth.pubkey(), &[]).unwrap()],
+        &[&vault_auth],
+    );
+    c.mint_to(&m, &a, 10_000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 1000, 6);
+    c.probe("memo deposit without memo", &[ix.clone()], &[&alice]).ok();
+    c.probe("memo deposit with memo before transfer", &[memo_ix("deposit"), ix.clone()], &[&alice]).ok();
+    c.probe("memo deposit with memo AFTER transfer", &[ix.clone(), memo_ix("deposit")], &[&alice]).ok();
+    let ix2 = c.xfer(&v, &m, &a, &vault_auth.pubkey(), 100, 6);
+    c.probe("memo withdraw out of memo-required vault, no memo", &[ix2.clone()], &[&vault_auth]).ok();
+    println!("INFO memo alice len before realloc {}", c.svm.get_account(&a).unwrap().data.len());
+    let r = ti::reallocate(&T22, &a, &p, &alice.pubkey(), &[], &[E::MemoTransfer]).unwrap();
+    c.probe("memo user reallocates own account for MemoTransfer", &[r], &[&alice]).ok();
+    println!("INFO memo alice len after realloc {}", c.svm.get_account(&a).unwrap().data.len());
+    c.ok(
+        "user enables memo on own account",
+        &[memo_transfer::instruction::enable_required_transfer_memos(&T22, &a, &alice.pubkey(), &[]).unwrap()],
+        &[&alice],
+    );
+    c.probe("memo protocol withdraw to user who enabled memo, no memo", &[ix2.clone()], &[&vault_auth]).ok();
+    c.probe("memo protocol withdraw to user with memo first", &[memo_ix("withdraw"), ix2], &[&vault_auth]).ok();
+}
+
+fn s5_cpi_guard_top_level() {
+    let mut c = Ctx::new();
+    let m = c.mint(&[], vec![], 6, false).pubkey();
+    let owner = Keypair::new();
+    let a = c.account(&m, &owner.pubkey(), &[E::CpiGuard]);
+    let b = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("INFO cpi account exts before enable {:?}", c.acct_exts(&a));
+    c.ok(
+        "enable cpi guard",
+        &[cpi_guard::instruction::enable_cpi_guard(&T22, &a, &owner.pubkey(), &[]).unwrap()],
+        &[&owner],
+    );
+    println!("INFO cpi account exts after enable {:?}", c.acct_exts(&a));
+    c.mint_to(&m, &a, 1000);
+    let ix = c.xfer(&a, &m, &b, &owner.pubkey(), 100, 6);
+    c.probe("cpi guard top-level owner transfer", &[ix], &[&owner]).ok();
+    let d = Keypair::new();
+    let ix = ti::approve(&T22, &a, &d.pubkey(), &owner.pubkey(), &[], 100).unwrap();
+    c.probe("cpi guard top-level approve", &[ix], &[&owner]).ok();
+    let ix = ti::set_authority(&T22, &a, Some(&Keypair::new().pubkey()), ti::AuthorityType::AccountOwner, &owner.pubkey(), &[]).unwrap();
+    c.probe("cpi guard top-level SetAuthority(AccountOwner)", &[ix], &[&owner]).ok();
+}
+
+fn s6_permanent_delegate() {
+    let mut c = Ctx::new();
+    let delegate = Keypair::new();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = ti::initialize_permanent_delegate(&T22, &m, &delegate.pubkey()).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::PermanentDelegate], vec![init], 6, false, 0);
+    c.ok("pd mint", &ixs, &[&mint]);
+    let vault_auth = Keypair::new();
+    let k = Keypair::new();
+    let ixs = c.account_ixs(&k.pubkey(), &m, &vault_auth.pubkey(), &[], vec![], None);
+    if let Ok(meta) = c.probe("pd create vault account", &ixs, &[&k]) {
+        let w: Vec<&String> = meta.logs.iter().filter(|l| l.contains("Warning")).collect();
+        println!("PROBE pd InitializeAccount3 warning log: {w:?}");
+    }
+    let v = k.pubkey();
+    let sink = c.account(&m, &delegate.pubkey(), &[]);
+    c.mint_to(&m, &v, 1000);
+    let ix = c.xfer(&v, &m, &sink, &delegate.pubkey(), 600, 6);
+    c.probe("pd delegate transfers out of vault, vault owner not signing", &[ix], &[&delegate]).ok();
+    let ix = ti::burn_checked(&T22, &v, &m, &delegate.pubkey(), &[], 400, 6).unwrap();
+    c.probe("pd delegate burns from vault, vault owner not signing", &[ix], &[&delegate]).ok();
+    println!("PROBE pd vault balance after = {}", c.bal(&v));
+}
+
+fn s7_interest_bearing() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = interest_bearing_mint::instruction::initialize(&T22, &m, Some(p), 500).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::InterestBearingConfig], vec![init], 6, false, 0);
+    c.ok("ib mint", &ixs, &[&mint]);
+    let a = c.account(&m, &Keypair::new().pubkey(), &[]);
+    c.mint_to(&m, &a, 1_000_000_000);
+    let u = c.ui(&m, 1_000_000_000);
+    println!("PROBE ib t0 raw={} ui={}", c.bal(&a), u);
+    c.warp(365 * 24 * 3600, 0);
+    let u = c.ui(&m, 1_000_000_000);
+    let r = c.ui_to_amount(&m, "1000");
+    println!("PROBE ib t+1y raw={} ui={} ui_to_amount(\"1000\")={}", c.bal(&a), u, r);
+    let ix = interest_bearing_mint::instruction::update_rate(&T22, &m, &p, &[], -1000).unwrap();
+    c.probe("ib rate authority sets negative rate -1000 bps", &[ix], &[]).ok();
+    c.warp(365 * 24 * 3600, 0);
+    let u = c.ui(&m, 1_000_000_000);
+    println!("PROBE ib t+2y raw={} ui={}", c.bal(&a), u);
+}
+
+fn s8_scaled_ui() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = scaled_ui_amount::instruction::initialize(&T22, &m, Some(p), 1.0).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::ScaledUiAmount], vec![init], 6, false, 0);
+    c.ok("sua mint", &ixs, &[&mint]);
+    let a = c.account(&m, &Keypair::new().pubkey(), &[]);
+    c.mint_to(&m, &a, 1_000_000);
+    let u = c.ui(&m, 1_000_000);
+    println!("PROBE sua t0 raw={} ui={}", c.bal(&a), u);
+    let now = c.svm.get_sysvar::<Clock>().unix_timestamp;
+    let ix = scaled_ui_amount::instruction::update_multiplier(&T22, &m, &p, &[], 2.0, now + 1000).unwrap();
+    c.probe("sua schedule multiplier 2.0 at now+1000", &[ix], &[]).ok();
+    let u = c.ui(&m, 1_000_000);
+    println!("PROBE sua before effective time raw={} ui={}", c.bal(&a), u);
+    c.warp(1000, 0);
+    let u = c.ui(&m, 1_000_000);
+    let r = c.ui_to_amount(&m, "1");
+    println!("PROBE sua after effective time raw={} ui={} ui_to_amount(\"1\")={}", c.bal(&a), u, r);
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let i1 = scaled_ui_amount::instruction::initialize(&T22, &m, Some(p), 1.0).unwrap();
+    let i2 = interest_bearing_mint::instruction::initialize(&T22, &m, Some(p), 100).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::ScaledUiAmount, E::InterestBearingConfig], vec![i1, i2], 6, false, 0);
+    c.probe("sua + interest bearing on one mint", &ixs, &[&mint]).ok();
+}
+
+fn s9_pausable() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = pausable::instruction::initialize(&T22, &m, &p).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::Pausable], vec![init], 6, false, 0);
+    c.ok("pausable mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let vault_auth = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &vault_auth.pubkey(), &[]);
+    let empty_owner = Keypair::new();
+    let e = c.account(&m, &empty_owner.pubkey(), &[]);
+    println!("INFO pausable account exts {:?}", c.acct_exts(&a));
+    c.mint_to(&m, &a, 1000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 500, 6);
+    c.ok("deposit before pause", &[ix], &[&alice]);
+    c.ok("pause", &[pausable::instruction::pause(&T22, &m, &p, &[]).unwrap()], &[]);
+    let ix = c.xfer(&v, &m, &a, &vault_auth.pubkey(), 500, 6);
+    c.probe("paused withdraw transfer_checked", &[ix], &[&vault_auth]).ok();
+    let ix = ti::mint_to(&T22, &m, &a, &p, &[], 1).unwrap();
+    c.probe("paused mint_to", &[ix], &[]).ok();
+    let ix = ti::burn_checked(&T22, &a, &m, &alice.pubkey(), &[], 1, 6).unwrap();
+    c.probe("paused burn", &[ix], &[&alice]).ok();
+    let ix = ti::approve(&T22, &a, &Keypair::new().pubkey(), &alice.pubkey(), &[], 1).unwrap();
+    c.probe("paused approve", &[ix], &[&alice]).ok();
+    let ix = ti::close_account(&T22, &e, &p, &empty_owner.pubkey(), &[]).unwrap();
+    c.probe("paused close empty account", &[ix], &[&empty_owner]).ok();
+    let ix = ti::transfer(&T22, &v, &a, &vault_auth.pubkey(), &[], 1).unwrap();
+    c.probe("paused legacy Transfer", &[ix], &[&vault_auth]).ok();
+    c.ok("resume", &[pausable::instruction::resume(&T22, &m, &p, &[]).unwrap()], &[]);
+    let ix = c.xfer(&v, &m, &a, &vault_auth.pubkey(), 500, 6);
+    c.probe("resumed withdraw", &[ix], &[&vault_auth]).ok();
+}
+
+fn s10_mint_close() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = ti::initialize_mint_close_authority(&T22, &m, Some(&p)).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::MintCloseAuthority], vec![init], 6, false, 0);
+    c.ok("mca mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    c.mint_to(&m, &a, 100);
+    let ix = ti::close_account(&T22, &m, &p, &p, &[]).unwrap();
+    c.probe("mca close mint with supply 100", &[ix.clone()], &[]).ok();
+    c.ok("burn all", &[ti::burn_checked(&T22, &a, &m, &alice.pubkey(), &[], 100, 6).unwrap()], &[&alice]);
+    c.probe("mca close mint with supply 0", &[ix], &[]).ok();
+    println!("PROBE mca mint account exists after close: {}", c.svm.get_account(&m).map(|x| x.lamports > 0).unwrap_or(false));
+    println!("PROBE mca old token account still exists: {}", c.svm.get_account(&a).is_some());
+    let i1 = ti::initialize_mint_close_authority(&T22, &m, Some(&p)).unwrap();
+    let i2 = transfer_fee::instruction::initialize_transfer_fee_config(&T22, &m, Some(&p), Some(&p), 1000, u64::MAX).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::MintCloseAuthority, E::TransferFeeConfig], vec![i1, i2], 0, false, 0);
+    c.probe("mca re-create mint at same address with decimals 0 + 10% fee", &ixs, &[&mint]).ok();
+    println!("INFO mca old account exts {:?}", c.acct_exts(&a));
+    let ix = ti::mint_to(&T22, &m, &a, &p, &[], 1000).unwrap();
+    c.probe("mca mint_to OLD account under re-created mint", &[ix], &[]).ok();
+    let owner2 = Keypair::new();
+    let fresh2 = c.account(&m, &owner2.pubkey(), &[]);
+    c.mint_to(&m, &fresh2, 1000);
+    let ix = c.xfer(&fresh2, &m, &a, &owner2.pubkey(), 1000, 0);
+    c.probe("mca fee-bearing transfer INTO old account lacking TransferFeeAmount", &[ix], &[&owner2]).ok();
+    println!("PROBE mca old account balance after = {}", c.bal(&a));
+    let ix = c.xfer(&a, &m, &fresh2, &alice.pubkey(), 1, 0);
+    c.probe("mca transfer OUT of old account under re-created mint", &[ix], &[&alice]).ok();
+}
+
+fn s11_immutable_owner() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let m = c.mint(&[], vec![], 6, false).pubkey();
+    let o = Keypair::new();
+    let plain = c.account(&m, &o.pubkey(), &[]);
+    let imm = c.account(&m, &o.pubkey(), &[E::ImmutableOwner]);
+    let pda_like = Keypair::new().pubkey();
+    let ix = ti::set_authority(&T22, &plain, Some(&pda_like), ti::AuthorityType::AccountOwner, &o.pubkey(), &[]).unwrap();
+    c.probe("io SetAuthority(AccountOwner) on account without ImmutableOwner", &[ix], &[&o]).ok();
+    let ix = ti::set_authority(&T22, &imm, Some(&pda_like), ti::AuthorityType::AccountOwner, &o.pubkey(), &[]).unwrap();
+    c.probe("io SetAuthority(AccountOwner) on ImmutableOwner account", &[ix], &[&o]).ok();
+    let wallet = Keypair::new();
+    let ata_ix = |mint: &Address, ata: &Address, kind: u8| Instruction {
+        program_id: ata_program(),
+        accounts: vec![
+            AccountMeta::new(p, true),
+            AccountMeta::new(*ata, false),
+            AccountMeta::new_readonly(wallet.pubkey(), false),
+            AccountMeta::new_readonly(*mint, false),
+            AccountMeta::new_readonly(solana_system_interface::program::ID, false),
+            AccountMeta::new_readonly(T22, false),
+        ],
+        data: vec![kind],
+    };
+    let (ata, _) = Address::find_program_address(&[wallet.pubkey().as_ref(), T22.as_ref(), m.as_ref()], &ata_program());
+    let ix = ata_ix(&m, &ata, 0);
+    c.probe("io create ATA for Token-2022 mint", &[ix], &[]).ok();
+    println!("PROBE io ATA exts {:?}", c.acct_exts(&ata));
+    let ix = ti::set_authority(&T22, &ata, Some(&pda_like), ti::AuthorityType::AccountOwner, &wallet.pubkey(), &[]).unwrap();
+    c.probe("io SetAuthority(AccountOwner) on Token-2022 ATA", &[ix], &[&wallet]).ok();
+    let mint = Keypair::new();
+    let mm = mint.pubkey();
+    let i1 = transfer_fee::instruction::initialize_transfer_fee_config(&T22, &mm, Some(&p), Some(&p), 100, 1000).unwrap();
+    let i2 = pausable::instruction::initialize(&T22, &mm, &p).unwrap();
+    let i3 = transfer_hook::instruction::initialize(&T22, &mm, Some(p), None).unwrap();
+    let ixs = c.mint_ixs(&mm, &[E::TransferFeeConfig, E::Pausable, E::TransferHook], vec![i1, i2, i3], 6, false, 0);
+    c.ok("multi mint", &ixs, &[&mint]);
+    let gads = c.ok("get_account_data_size", &[ti::get_account_data_size(&T22, &mm, &[]).unwrap()], &[]);
+    let n = u64::from_le_bytes(gads.return_data.data[..8].try_into().unwrap());
+    let gads2 = c.ok("get_account_data_size+io", &[ti::get_account_data_size(&T22, &mm, &[E::ImmutableOwner]).unwrap()], &[]);
+    let n2 = u64::from_le_bytes(gads2.return_data.data[..8].try_into().unwrap());
+    let calc = E::try_calculate_account_len::<Account>(&E::get_required_init_account_extensions(&c.mint_exts(&mm))).unwrap();
+    println!("PROBE io GetAccountDataSize(TF+Pausable+Hook mint) = {n}; with ImmutableOwner = {n2}; host calc = {calc}");
+    let (ata2, _) = Address::find_program_address(&[wallet.pubkey().as_ref(), T22.as_ref(), mm.as_ref()], &ata_program());
+    let ix = ata_ix(&mm, &ata2, 1);
+    c.probe("io create ATA (idempotent) for TF+Pausable+Hook mint", &[ix], &[]).ok();
+    println!("PROBE io ATA(multi) exts {:?} len {}", c.acct_exts(&ata2), c.svm.get_account(&ata2).unwrap().data.len());
+}
+
+fn s12_transfer_hook() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let fake_hook = Keypair::new().pubkey();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = transfer_hook::instruction::initialize(&T22, &m, Some(p), Some(fake_hook)).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::TransferHook], vec![init], 6, false, 0);
+    c.ok("hook mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("INFO hook account exts {:?}", c.acct_exts(&a));
+    c.mint_to(&m, &a, 1000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 100, 6);
+    c.probe("hook transfer_checked, no extra accounts, hook program does not exist", &[ix.clone()], &[&alice]).ok();
+    let mut ixb = ix.clone();
+    ixb.accounts.push(AccountMeta::new_readonly(fake_hook, false));
+    c.probe("hook transfer_checked + hook program id account (non-existent)", &[ixb], &[&alice]).ok();
+    let ix = ti::transfer(&T22, &a, &v, &alice.pubkey(), &[], 1).unwrap();
+    c.probe("hook legacy Transfer", &[ix], &[&alice]).ok();
+    let mint = Keypair::new();
+    let m2 = mint.pubkey();
+    let init = transfer_hook::instruction::initialize(&T22, &m2, Some(p), None).unwrap();
+    let ixs = c.mint_ixs(&m2, &[E::TransferHook], vec![init], 6, false, 0);
+    c.ok("hook mint (program None)", &ixs, &[&mint]);
+    let a2 = c.account(&m2, &alice.pubkey(), &[]);
+    let v2 = c.account(&m2, &Keypair::new().pubkey(), &[]);
+    c.mint_to(&m2, &a2, 1000);
+    let ix = c.xfer(&a2, &m2, &v2, &alice.pubkey(), 100, 6);
+    c.probe("hook(None) transfer_checked", &[ix.clone()], &[&alice]).ok();
+    let up = transfer_hook::instruction::update(&T22, &m2, &p, &[], Some(memo_program())).unwrap();
+    c.probe("hook authority switches hook program on (memo program id)", &[up], &[]).ok();
+    c.probe("hook(after switch) same transfer_checked, no extra accounts", &[ix.clone()], &[&alice]).ok();
+    let mut ixc = ix.clone();
+    ixc.accounts.push(AccountMeta::new_readonly(memo_program(), false));
+    c.probe("hook(after switch) transfer_checked + hook program account", &[ixc], &[&alice]).ok();
+    let (validation, _) = Address::find_program_address(&[b"extra-account-metas", m2.as_ref()], &memo_program());
+    let mut ixd = ix.clone();
+    ixd.accounts.push(AccountMeta::new_readonly(validation, false));
+    ixd.accounts.push(AccountMeta::new_readonly(memo_program(), false));
+    c.probe("hook(after switch) transfer_checked + validation PDA + hook program", &[ixd], &[&alice]).ok();
+    let ix = c.xfer(&a2, &m2, &a2, &alice.pubkey(), 10, 6);
+    c.probe("hook(after switch) self-transfer, no extra accounts", &[ix], &[&alice]).ok();
+}
+
+fn s13_metadata() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let (name, symbol, uri) = ("ExtensionLab Test".to_string(), "EXT".to_string(), "https://example.com/m.json".to_string());
+    let md_tlv = 4 + 32 + 32 + (4 + name.len()) + (4 + symbol.len()) + (4 + uri.len()) + 4;
+    for (label, extra) in [("funded", md_tlv), ("underfunded", 0usize)] {
+        let mint = Keypair::new();
+        let m = mint.pubkey();
+        let ptr = metadata_pointer::instruction::initialize(&T22, &m, Some(p), Some(m)).unwrap();
+        let ixs = c.mint_ixs(&m, &[E::MetadataPointer], vec![ptr], 6, false, extra);
+        c.ok("md mint", &ixs, &[&mint]);
+        let len0 = c.svm.get_account(&m).unwrap().data.len();
+        let ix = spl_token_metadata_interface::instruction::initialize(&T22, &m, &p, &m, &p, name.clone(), symbol.clone(), uri.clone());
+        c.probe(&format!("md initialize TokenMetadata in mint ({label} lamports)"), &[ix], &[]).ok();
+        let acc = c.svm.get_account(&m).unwrap();
+        println!("PROBE md {label}: len before {len0}, after {}, computed tlv {md_tlv}, exts {:?}", acc.data.len(), c.mint_exts(&m));
+    }
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let ptr = metadata_pointer::instruction::initialize(&T22, &m, Some(p), Some(Keypair::new().pubkey())).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::MetadataPointer], vec![ptr], 6, false, 0);
+    c.probe("md pointer to arbitrary foreign address", &ixs, &[&mint]).ok();
+    let a = c.account(&m, &p, &[]);
+    let b = c.account(&m, &Keypair::new().pubkey(), &[]);
+    c.mint_to(&m, &a, 10);
+    let ix = c.xfer(&a, &m, &b, &p, 10, 6);
+    c.probe("md transfer_checked on pointer mint", &[ix], &[]).ok();
+}
+
+fn s14_group() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let gmint = Keypair::new();
+    let g = gmint.pubkey();
+    let ptr = group_pointer::instruction::initialize(&T22, &g, Some(p), Some(g)).unwrap();
+    let ixs = c.mint_ixs(&g, &[E::GroupPointer], vec![ptr], 0, false, 200);
+    c.ok("group mint", &ixs, &[&gmint]);
+    let ix = spl_token_group_interface::instruction::initialize_group(&T22, &g, &g, &p, Some(p), 2);
+    c.probe("group initialize_group in mint", &[ix], &[]).ok();
+    println!("PROBE group mint len {}, exts {:?}", c.svm.get_account(&g).unwrap().data.len(), c.mint_exts(&g));
+    for i in 0..3 {
+        let mm = Keypair::new();
+        let m = mm.pubkey();
+        let ptr = group_member_pointer::instruction::initialize(&T22, &m, Some(p), Some(m)).unwrap();
+        let ixs = c.mint_ixs(&m, &[E::GroupMemberPointer], vec![ptr], 0, false, 200);
+        c.ok("member mint", &ixs, &[&mm]);
+        let ix = spl_token_group_interface::instruction::initialize_member(&T22, &m, &m, &p, &g, &p);
+        c.probe(&format!("group initialize_member #{i} (max_size 2)"), &[ix], &[]).ok();
+    }
+}
+
+fn s15_confidential() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = confidential_transfer::instruction::initialize_mint(&T22, &m, Some(p), true, None).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::ConfidentialTransferMint], vec![init], 6, false, 0);
+    c.ok("ct mint", &ixs, &[&mint]);
+    let alice = Keypair::new();
+    let a = c.account(&m, &alice.pubkey(), &[]);
+    let v = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("INFO ct plain account exts {:?}", c.acct_exts(&a));
+    c.mint_to(&m, &a, 1000);
+    let ix = c.xfer(&a, &m, &v, &alice.pubkey(), 1000, 6);
+    c.probe("ct public transfer_checked between unconfigured accounts", &[ix], &[&alice]).ok();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let i1 = confidential_transfer::instruction::initialize_mint(&T22, &m, Some(p), true, None).unwrap();
+    let i2 = transfer_fee::instruction::initialize_transfer_fee_config(&T22, &m, Some(&p), Some(&p), 100, 1000).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::ConfidentialTransferMint, E::TransferFeeConfig], vec![i1, i2], 6, false, 0);
+    c.probe("ct + transfer fee without ConfidentialTransferFeeConfig", &ixs, &[&mint]).ok();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let i1 = confidential_transfer::instruction::initialize_mint(&T22, &m, Some(p), true, None).unwrap();
+    let i2 = ti::initialize_non_transferable_mint(&T22, &m).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::ConfidentialTransferMint, E::NonTransferable], vec![i1, i2], 6, false, 0);
+    c.probe("ct + non-transferable without ConfidentialMintBurn", &ixs, &[&mint]).ok();
+}
+
+fn s16_ordering() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let space = E::try_calculate_account_len::<Mint>(&[E::TransferFeeConfig]).unwrap();
+    let lamports = c.svm.minimum_balance_for_rent_exemption(space);
+    let ixs = vec![
+        solana_system_interface::instruction::create_account(&p, &m, lamports, space as u64, &T22),
+        ti::initialize_mint2(&T22, &m, &p, None, 6).unwrap(),
+        transfer_fee::instruction::initialize_transfer_fee_config(&T22, &m, Some(&p), Some(&p), 100, 1000).unwrap(),
+    ];
+    c.probe("order: InitializeMint2 BEFORE transfer fee init on sized account", &ixs, &[&mint]).ok();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let lamports = c.svm.minimum_balance_for_rent_exemption(82);
+    let ixs = vec![
+        solana_system_interface::instruction::create_account(&p, &m, lamports, 82, &T22),
+        transfer_fee::instruction::initialize_transfer_fee_config(&T22, &m, Some(&p), Some(&p), 100, 1000).unwrap(),
+        ti::initialize_mint2(&T22, &m, &p, None, 6).unwrap(),
+    ];
+    c.probe("order: transfer fee init on 82-byte mint account", &ixs, &[&mint]).ok();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let ixs = c.mint_ixs(&m, &[E::TransferFeeConfig], vec![], 6, false, 0);
+    c.probe("order: space for TransferFeeConfig reserved but extension never initialized", &ixs, &[&mint]).ok();
+}
+
+/// Close a mint that has one zero-balance holder account, then re-create a
+/// mint at the same address with `exts`. Returns (ctx, mint, old_account, old_owner).
+fn resurrect(exts: &[E], pre: impl Fn(&Address, &Address) -> Vec<Instruction>, freeze: bool) -> (Ctx, Keypair, Address, Keypair) {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = ti::initialize_mint_close_authority(&T22, &m, Some(&p)).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::MintCloseAuthority], vec![init], 0, false, 0);
+    c.ok("mint v1", &ixs, &[&mint]);
+    let old_owner = Keypair::new();
+    let old = c.account(&m, &old_owner.pubkey(), &[]);
+    c.ok("close mint v1", &[ti::close_account(&T22, &m, &p, &p, &[]).unwrap()], &[]);
+    let mut all = vec![E::MintCloseAuthority];
+    all.extend_from_slice(exts);
+    let mut pre_ixs = vec![ti::initialize_mint_close_authority(&T22, &m, Some(&p)).unwrap()];
+    pre_ixs.extend(pre(&m, &p));
+    let ixs = c.mint_ixs(&m, &all, pre_ixs, 0, freeze, 0);
+    c.ok("mint v2 at same address", &ixs, &[&mint]);
+    (c, mint, old, old_owner)
+}
+
+fn s17_resurrection() {
+    // DefaultAccountState(Frozen) added on re-creation: is the old account frozen?
+    let (mut c, mint, old, old_owner) = resurrect(
+        &[E::DefaultAccountState],
+        |m, _| vec![default_account_state::instruction::initialize_default_account_state(&T22, m, &AccountState::Frozen).unwrap()],
+        true,
+    );
+    let m = mint.pubkey();
+    let fresh = c.account(&m, &Keypair::new().pubkey(), &[]);
+    println!("PROBE res(DAS frozen) old account frozen={} fresh account frozen={}", c.is_frozen(&old), c.is_frozen(&fresh));
+    let ix = ti::mint_to(&T22, &m, &old, &c.p(), &[], 100).unwrap();
+    c.probe("res(DAS frozen) mint_to old unfrozen account", &[ix], &[]).ok();
+    let sink_owner = Keypair::new();
+    let sink = c.account(&m, &sink_owner.pubkey(), &[]);
+    c.ok("thaw sink", &[ti::thaw_account(&T22, &sink, &m, &c.p(), &[]).unwrap()], &[]);
+    let ix = c.xfer(&old, &m, &sink, &old_owner.pubkey(), 100, 0);
+    c.probe("res(DAS frozen) old account transfers without ever being thawed", &[ix], &[&old_owner]).ok();
+
+    // NonTransferable added on re-creation
+    let (mut c, mint, old, _o) = resurrect(&[E::NonTransferable], |m, _| vec![ti::initialize_non_transferable_mint(&T22, m).unwrap()], false);
+    let ix = ti::mint_to(&T22, &mint.pubkey(), &old, &c.p(), &[], 100).unwrap();
+    c.probe("res(NonTransferable) mint_to old account", &[ix], &[]).ok();
+
+    // TransferFee added on re-creation: outbound from old account
+    let (mut c, mint, old, old_owner) = resurrect(
+        &[E::TransferFeeConfig],
+        |m, p| vec![transfer_fee::instruction::initialize_transfer_fee_config(&T22, m, Some(p), Some(p), 1000, u64::MAX).unwrap()],
+        false,
+    );
+    let m = mint.pubkey();
+    c.mint_to(&m, &old, 1000);
+    let dst = c.account(&m, &Keypair::new().pubkey(), &[]);
+    let ix = c.xfer(&old, &m, &dst, &old_owner.pubkey(), 1000, 0);
+    c.probe("res(TransferFee 10%) transfer 1000 OUT of old account", &[ix], &[&old_owner]).ok();
+    println!("PROBE res(TransferFee) dst credited={} dst withheld={}", c.bal(&dst), c.withheld(&dst));
+
+    // TransferHook (non-existent program) added on re-creation: outbound from old account
+    let fake = Keypair::new().pubkey();
+    let (mut c, mint, old, old_owner) = resurrect(
+        &[E::TransferHook],
+        move |m, p| vec![transfer_hook::instruction::initialize(&T22, m, Some(*p), Some(fake)).unwrap()],
+        false,
+    );
+    let m = mint.pubkey();
+    c.mint_to(&m, &old, 1000);
+    let dst = c.account(&m, &Keypair::new().pubkey(), &[]);
+    let ix = c.xfer(&old, &m, &dst, &old_owner.pubkey(), 10, 0);
+    c.probe("res(TransferHook fake program) transfer OUT of old account, no extra accounts", &[ix], &[&old_owner]).ok();
+}
+
+fn s18_permissioned_burn() {
+    let mut c = Ctx::new();
+    let p = c.p();
+    let burn_auth = Keypair::new();
+    let mint = Keypair::new();
+    let m = mint.pubkey();
+    let init = spl_token_2022_interface::extension::permissioned_burn::instruction::initialize(&T22, &m, &burn_auth.pubkey()).unwrap();
+    let ixs = c.mint_ixs(&m, &[E::PermissionedBurn], vec![init], 6, false, 0);
+    c.ok("pb mint", &ixs, &[&mint]);
+    let o = Keypair::new();
+    let a = c.account(&m, &o.pubkey(), &[]);
+    c.mint_to(&m, &a, 100);
+    let ix = ti::burn_checked(&T22, &a, &m, &o.pubkey(), &[], 10, 6).unwrap();
+    c.probe("pb owner standard BurnChecked", &[ix], &[&o]).ok();
+    let ix = spl_token_2022_interface::extension::permissioned_burn::instruction::burn_checked(&T22, &a, &m, &burn_auth.pubkey(), &o.pubkey(), &[], 10, 6).unwrap();
+    c.probe("pb permissioned BurnChecked with burn authority co-sign", &[ix], &[&o, &burn_auth]).ok();
+    let _ = p;
+}
+
+fn run(name: &str, f: fn()) {
+    println!("===== {name}");
+    if catch_unwind(AssertUnwindSafe(f)).is_err() {
+        println!("SCENARIO {name} PANICKED (see stderr)");
+    }
+}
+
+fn main() {
+    run("s0_sizes", s0_sizes);
+    run("s1_transfer_fee", s1_transfer_fee);
+    run("s2_default_frozen", s2_default_frozen);
+    run("s3_non_transferable", s3_non_transferable);
+    run("s4_memo", s4_memo);
+    run("s5_cpi_guard_top_level", s5_cpi_guard_top_level);
+    run("s6_permanent_delegate", s6_permanent_delegate);
+    run("s7_interest_bearing", s7_interest_bearing);
+    run("s8_scaled_ui", s8_scaled_ui);
+    run("s9_pausable", s9_pausable);
+    run("s10_mint_close", s10_mint_close);
+    run("s11_immutable_owner", s11_immutable_owner);
+    run("s12_transfer_hook", s12_transfer_hook);
+    run("s13_metadata", s13_metadata);
+    run("s14_group", s14_group);
+    run("s15_confidential", s15_confidential);
+    run("s16_ordering", s16_ordering);
+    run("s17_resurrection", s17_resurrection);
+    run("s18_permissioned_burn", s18_permissioned_burn);
+}

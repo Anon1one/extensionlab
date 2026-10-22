@@ -1,0 +1,971 @@
+
+running 16 tests
+test a_fee_mint_a_make_vault_holds_less_than_deposit ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 180299 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 174125 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 171114 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17146 of 185633 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 163049 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 40944 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+make CUs: 40944
+ok
+test b_fee_mint_a_take_succeeds_after_permissionless_harvest ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 177299 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 171125 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 168114 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 18646 of 184133 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 158549 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 45444 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- stranger harvests vault ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: TransferFeeInstruction: HarvestWithheldTokensToMint
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1207 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+---- take after harvest ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 179474 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 173300 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 170291 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 20045 of 187730 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 150002 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 144025 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 141015 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17640 of 156835 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 122455 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 118603 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1740 of 113793 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 88747 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+take CUs: 88747
+ok
+test b_fee_mint_a_take_succeeds_with_harvest_prepended_in_same_tx ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 181799 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 175625 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 172614 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17146 of 187133 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 164549 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 39444 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- harvest + take in one tx ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: TransferFeeInstruction: HarvestWithheldTokensToMint
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1207 of 400000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 375268 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 369094 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 366085 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 21545 of 385024 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 329296 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 323319 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 320309 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 25140 of 343629 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 294232 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 290380 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1740 of 285570 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 115763 of 398793 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+ok
+test b_fee_mint_b_take_maker_receives_less_than_receive ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 180301 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 174324 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 171314 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 185634 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 162557 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 40311 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take (fee-bearing mint_b) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 176476 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 170499 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 167491 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 20539 of 186231 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 149507 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 143333 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 140322 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17146 of 154841 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 120954 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 115978 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1501 of 112293 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 90008 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+ok
+test control_plain_token2022_make_and_take ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 181896 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 175919 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 172909 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 187229 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 162652 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 40216 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take (plain Token-2022) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 182571 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 176594 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 173577 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17548 of 189326 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 149595 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 143618 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 140608 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 20640 of 159428 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 120517 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 116666 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1501 of 112981 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 89320 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+ok
+test d_fee_mint_b_gross_up_receive_gives_maker_exact_net ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 174301 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 168324 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 165314 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17640 of 181134 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 158057 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 44811 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take grossed-up ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 174781 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 169805 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1501 of 166120 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 36181 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+ok
+test d_fee_mint_b_issuer_fee_change_after_make_cuts_maker_net ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 181801 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 175824 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 172814 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 187134 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 162557 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 40311 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- issuer sets fee to 500 bps ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: TransferFeeInstruction: SetTransferFee
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1294 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+---- take after fee change ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 164298 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 159322 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1501 of 155637 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 46664 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+ok
+test d_fee_mint_b_max_receive_bounds_gross_not_net ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 172801 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 166824 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 163814 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 19140 of 181134 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 156557 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 46311 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take with max_receive = net ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program log: AnchorError thrown in programs/escrowq32026/src/instructions/take.rs:84. Error Code: ReceiveAboveMax. Error Number: 6004. Error Message: Escrow is asking for more than the taker agreed to pay.
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 25456 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x1774
+---- update receive -> 5_000_000 ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Update
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 4141 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take at 5_000_000 ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 174798 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 169822 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1501 of 166137 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 36164 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+ok
+test limit_maker_cannot_self_take_with_one_wallet ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 175896 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 169919 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 166909 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 19140 of 184229 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 159652 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 43216 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- self-take (taker == maker) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program log: AnchorError caused by account: maker_ata_b. Error Code: ConstraintDuplicateMutableAccount. Error Number: 2040. Error Message: A duplicate mutable account constraint was violated.
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 16387 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7f8
+ok
+test limit_mixed_token_programs_rejected_at_make ... ---- make legacy A / Token-2022 B, token_program = SPL Token ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1595 of 176794 compute units
+Program return: TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA pQAAAAAAAAA=
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program log: Please upgrade to SPL Token 2022 for immutable owner support
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 1405 of 170289 compute units
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA consumed 4214 of 166458 compute units
+Program TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 20275 of 182215 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program log: AnchorError occurred. Error Code: ConstraintMintTokenProgram. Error Number: 2022. Error Message: A mint token program constraint was violated.
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 41311 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7e6
+---- make legacy A / Token-2022 B, token_program = Token-2022 ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program log: Error: IncorrectProgramId
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 738 of 168412 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: incorrect program id for instruction
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 10571 of 178245 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL failed: incorrect program id for instruction
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 32326 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: incorrect program id for instruction
+ok
+test repro_b_fee_both_mints_take_fails_closing_vault ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 175704 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 169530 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 166519 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17146 of 181038 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 153954 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 50039 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take (both mints fee-bearing) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 177703 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 172726 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program log: Error: An account can only be closed if its withheld fee balance is zero, harvest fees to the mint and try again
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1772 of 167916 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x23
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 33856 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x23
+ok
+test repro_b_fee_mint_a_take_fails_closing_vault_with_withheld_fees ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 181799 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 175625 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 172614 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17146 of 187133 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 155549 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 48444 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take (fee-bearing mint_a) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 185474 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 179300 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 176291 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17045 of 190730 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 162002 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 156025 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 153015 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 167335 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 137455 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 133603 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: CloseAccount
+Program log: Error: An account can only be closed if its withheld fee balance is zero, harvest fees to the mint and try again
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1772 of 128793 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x23
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 72979 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x23
+ok
+test repro_c_fee_mint_a_refund_rejected_before_close ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 181799 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 175625 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 172614 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17146 of 187133 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 163049 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 40944 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- refund (fee-bearing mint_a) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Refund
+Program log: AnchorError caused by account: maker_ata_a. Error Code: ConstraintAssociated. Error Number: 2009. Error Message: An associated constraint was violated.
+Program log: Left:
+Program log: DsEmurKNwYVLZ3cQyobBJ4TLcUeaScemr9cP65XxTaa8
+Program log: Right:
+Program log: Cw1aBcSELwVad62m6FtHwxNQRZAMxvxVMZr7Fexzepvr
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 13637 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7d9
+---- harvest vault ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: TransferFeeInstruction: HarvestWithheldTokensToMint
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1207 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+---- refund after harvest ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Refund
+Program log: AnchorError caused by account: maker_ata_a. Error Code: ConstraintAssociated. Error Number: 2009. Error Message: An associated constraint was violated.
+Program log: Left:
+Program log: DsEmurKNwYVLZ3cQyobBJ4TLcUeaScemr9cP65XxTaa8
+Program log: Right:
+Program log: Cw1aBcSELwVad62m6FtHwxNQRZAMxvxVMZr7Fexzepvr
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 13637 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7d9
+ok
+test repro_expired_token2022_escrow_is_locked_forever ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 181896 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 175919 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 172909 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 187229 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 159652 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 43216 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- take after expiry ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Take
+Program log: AnchorError thrown in programs/escrowq32026/src/instructions/take.rs:79. Error Code: EscrowExpired. Error Number: 6000. Error Message: The escrow has expired.
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 23843 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x1770
+---- update(expiration) after expiry ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Update
+Program log: AnchorError thrown in programs/escrowq32026/src/instructions/update.rs:38. Error Code: EscrowExpired. Error Number: 6000. Error Message: The escrow has expired.
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 5252 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x1770
+---- refund after expiry ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Refund
+Program log: AnchorError caused by account: maker_ata_a. Error Code: ConstraintAssociated. Error Number: 2009. Error Message: An associated constraint was violated.
+Program log: Left:
+Program log: 885G2pJJJATRF6ChZCuoURhTXUFS7Y5ppmvHRE6tgnp5
+Program log: Right:
+Program log: 5EYg3CSczkXkUXsdnQH96TjzFJyXVZYif6UYD4JATaGy
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 10542 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7d9
+ok
+test repro_refund_rejected_for_any_token2022_mint ... ---- make ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Make
+Program 11111111111111111111111111111111 invoke [2]
+Program 11111111111111111111111111111111 success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]
+Program log: Create
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: GetAccountDataSize
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 178896 compute units
+Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 11111111111111111111111111111111 invoke [3]
+Program 11111111111111111111111111111111 success
+Program log: Initialize the associated token account
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeImmutableOwner
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 172919 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]
+Program log: Instruction: InitializeAccount3
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 169909 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 184229 compute units
+Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 162652 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 40216 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t success
+---- refund (plain Token-2022) ----
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]
+Program log: Instruction: Refund
+Program log: AnchorError caused by account: maker_ata_a. Error Code: ConstraintAssociated. Error Number: 2009. Error Message: An associated constraint was violated.
+Program log: Left:
+Program log: 9fPwwhdpPsfYXkAoRYXnEZ43VHNhsF8G6vhahdGGbagJ
+Program log: Right:
+Program log: 9zAjdu6G3AYdQrbQLes9MWto2ueq83W1gkyPgkAk8fkp
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 9042 of 200000 compute units
+Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7d9
+ok
+test rule_token2022_refuses_to_close_account_with_withheld_fees ... ---- alice -> bob ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3085 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+---- bob -> alice ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: Instruction: TransferChecked
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3085 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+---- close bob (withheld 200_000) ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: Instruction: CloseAccount
+Program log: Error: An account can only be closed if its withheld fee balance is zero, harvest fees to the mint and try again
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1651 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x23
+---- stranger harvests bob ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: TransferFeeInstruction: HarvestWithheldTokensToMint
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1207 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+---- close bob after harvest ----
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [1]
+Program log: Instruction: CloseAccount
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1619 of 200000 compute units
+Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success
+ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+

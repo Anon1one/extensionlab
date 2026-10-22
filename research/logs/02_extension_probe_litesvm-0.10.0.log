@@ -1,0 +1,248 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.10s
+     Running tests/extension_probe.rs (target/probe-build/debug/deps/extension_probe-4c5735a6346238ff)
+
+running 19 tests
+test account_sizes ... 
+### account_sizes (research/02: Account size reference; finding 2)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| SIZE.1 | same | base mint, base token account | 82, 165 | 82, 165 |
+| SIZE.m01 | same | mint + TransferFeeConfig | 278; forces [TransferFeeAmount]; account 178 | 278; forces [TransferFeeAmount]; account 178 |
+| SIZE.m02 | same | mint + MintCloseAuthority | 202; forces []; account 165 | 202; forces []; account 165 |
+| SIZE.m03 | same | mint + ConfidentialTransferMint | 235; forces []; account 165 | 235; forces []; account 165 |
+| SIZE.m04 | same | mint + DefaultAccountState | 171; forces []; account 165 | 171; forces []; account 165 |
+| SIZE.m05 | same | mint + NonTransferable | 170; forces [NonTransferableAccount, ImmutableOwner]; account 174 | 170; forces [NonTransferableAccount, ImmutableOwner]; account 174 |
+| SIZE.m06 | same | mint + InterestBearingConfig | 222; forces []; account 165 | 222; forces []; account 165 |
+| SIZE.m07 | same | mint + PermanentDelegate | 202; forces []; account 165 | 202; forces []; account 165 |
+| SIZE.m08 | same | mint + TransferHook | 234; forces [TransferHookAccount]; account 171 | 234; forces [TransferHookAccount]; account 171 |
+| SIZE.m09 | same | mint + ConfidentialTransferFeeConfig | 299; forces []; account 165 | 299; forces []; account 165 |
+| SIZE.m10 | same | mint + MetadataPointer | 234; forces []; account 165 | 234; forces []; account 165 |
+| SIZE.m11 | same | mint + GroupPointer | 234; forces []; account 165 | 234; forces []; account 165 |
+| SIZE.m12 | same | mint + TokenGroup | 250; forces []; account 165 | 250; forces []; account 165 |
+| SIZE.m13 | same | mint + GroupMemberPointer | 234; forces []; account 165 | 234; forces []; account 165 |
+| SIZE.m14 | same | mint + TokenGroupMember | 242; forces []; account 165 | 242; forces []; account 165 |
+| SIZE.m15 | same | mint + ScaledUiAmount | 226; forces []; account 165 | 226; forces []; account 165 |
+| SIZE.m16 | same | mint + Pausable | 203; forces [PausableAccount]; account 170 | 203; forces [PausableAccount]; account 170 |
+| SIZE.m17 | not probed | mint + PermissionedBurn | 202; forces []; account 165 | spl-token-2022-interface 2.1.0 has no PermissionedBurn extension type |
+| SIZE.m18 | same | mint + TokenMetadata (variable length) | Err(InvalidArgument) | Err(InvalidArgument) |
+| SIZE.a01 | same | account + TransferFeeAmount | 178 | 178 |
+| SIZE.a02 | same | account + ImmutableOwner | 170 | 170 |
+| SIZE.a03 | same | account + MemoTransfer | 171 | 171 |
+| SIZE.a04 | same | account + CpiGuard | 171 | 171 |
+| SIZE.a05 | same | account + NonTransferableAccount | 170 | 170 |
+| SIZE.a06 | same | account + TransferHookAccount | 171 | 171 |
+| SIZE.a07 | same | account + PausableAccount | 170 | 170 |
+| SIZE.a08 | same | account + ConfidentialTransferAccount | 465 | 465 |
+| SIZE.a09 | same | account + ConfidentialTransferFeeAmount | 234 | 234 |
+ok
+test confidential_transfer ... 
+### confidential_transfer (research/02: ConfidentialTransfer; NonTransferable)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| CT.1 | same | unconfigured token account: extensions, size | [], 165 | [], 165 |
+| CT.2 | same | public transfer_checked between unconfigured accounts | ok | ok |
+| CT.3 | same | ConfidentialTransferMint + TransferFeeConfig, no ConfidentialTransferFeeConfig | ix 3: InvalidExtensionCombination (0x33) | ix 3: InvalidExtensionCombination (0x33) |
+| CT.4 | different | ConfidentialTransferMint + NonTransferable, no ConfidentialMintBurn | ix 3: InvalidExtensionCombination (0x33) | ok |
+ok
+test cpi_guard_top_level ... 
+### cpi_guard_top_level (research/02: CpiGuard)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| CPIG.1 | same | account extensions before and after enable_cpi_guard; size | [] -> [CpiGuard], 171 | [] -> [CpiGuard], 171 |
+| CPIG.2 | same | top level: owner transfer | ok | ok |
+| CPIG.3 | same | top level: Approve | ok | ok |
+| CPIG.4 | same | top level: SetAuthority(AccountOwner) | ix 0: CpiGuardOwnerChangeBlocked (0x2f) | ix 0: CpiGuardOwnerChangeBlocked (0x2f) |
+ok
+test default_account_state_frozen ... 
+### default_account_state_frozen (research/02: DefaultAccountState (Frozen))
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| DAS.1 | same | frozen default without a freeze authority | ix 2: MintCannotFreeze (0x10) | ix 2: MintCannotFreeze (0x10) |
+| DAS.2 | same | new accounts: state | alice frozen, vault frozen | alice frozen, vault frozen |
+| DAS.3 | same | mint_to a frozen account | ix 0: AccountFrozen (0x11) | ix 0: AccountFrozen (0x11) |
+| DAS.4 | same | deposit into the frozen vault | ix 0: AccountFrozen (0x11) | ix 0: AccountFrozen (0x11) |
+| DAS.5 | same | deposit after the issuer thaws the vault | ok | ok |
+| DAS.6 | same | withdraw after the freeze authority freezes the vault | ix 0: AccountFrozen (0x11) | ix 0: AccountFrozen (0x11) |
+| DAS.7 | same | freeze authority sets the default to Initialized; a new account | ok; new account initialized | ok; new account initialized |
+ok
+test immutable_owner ... 
+### immutable_owner (research/02: ImmutableOwner; finding 2)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| IO.1 | same | SetAuthority(AccountOwner), account without ImmutableOwner | ok | ok |
+| IO.2 | same | SetAuthority(AccountOwner), ImmutableOwner account | ix 0: ImmutableOwner (0x22) | ix 0: ImmutableOwner (0x22) |
+| IO.3 | same | create a Token-2022 ATA; its extensions | ok; [ImmutableOwner] | ok; [ImmutableOwner] |
+| IO.4 | same | SetAuthority(AccountOwner) on the Token-2022 ATA | ix 0: ImmutableOwner (0x22) | ix 0: ImmutableOwner (0x22) |
+| IO.5 | same | GetAccountDataSize, TransferFee + Pausable + TransferHook mint: plain, + ImmutableOwner, host calculation | 187, 191, 187 | 187, 191, 187 |
+| IO.6 | same | create that mint's ATA (idempotent); extensions, size | ok; [ImmutableOwner, TransferFeeAmount, PausableAccount, TransferHookAccount], 191 | ok; [ImmutableOwner, TransferFeeAmount, PausableAccount, TransferHookAccount], 191 |
+ok
+test initialization_order ... 
+### initialization_order (research/02: Account size reference, ordering rules)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| ORDER.1 | same | InitializeMint2 before the transfer fee initializer (account sized for it) | ix 1: InvalidAccountData | ix 1: InvalidAccountData |
+| ORDER.2 | same | transfer fee initializer on an 82-byte account | ix 1: InvalidAccountData | ix 1: InvalidAccountData |
+| ORDER.3 | same | space reserved for TransferFeeConfig, never initialized | ix 1: InvalidAccountData | ix 1: InvalidAccountData |
+ok
+test interest_bearing_config ... 
+### interest_bearing_config (research/02: InterestBearingConfig)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| IB.1 | same | 5%, at start: raw balance, UI amount | raw 1000000000, ui 1000 | raw 1000000000, ui 1000 |
+| IB.2 | same | after one simulated year: raw balance, UI amount | raw 1000000000, ui 1051.236557 | raw 1000000000, ui 1051.236557 |
+| IB.3 | same | after one year: UiAmountToAmount("1000") | 951260678 | 951260678 |
+| IB.4 | same | rate authority sets -1000 bps; UI amount a year later | ok; ui 951.260678 | ok; ui 951.260678 |
+ok
+test memo_transfer ... 
+### memo_transfer (research/02: MemoTransfer (required memo))
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| MEMO.1 | same | deposit into a memo vault, no memo | ix 0: NoMemo (0x24) | ix 0: NoMemo (0x24) |
+| MEMO.2 | same | deposit with the memo directly before | ok | ok |
+| MEMO.3 | same | deposit with the memo after | ix 0: NoMemo (0x24) | ix 0: NoMemo (0x24) |
+| MEMO.4 | same | transfer out of the memo vault, no memo | ok | ok |
+| MEMO.5 | same | user reallocates own account for MemoTransfer; size | ok; 165 -> 171 | ok; 165 -> 171 |
+| MEMO.6 | same | protocol withdraws to that user, no memo | ix 0: NoMemo (0x24) | ix 0: NoMemo (0x24) |
+| MEMO.7 | same | protocol withdraws with the memo first | ok | ok |
+ok
+test metadata_pointer ... 
+### metadata_pointer (research/02: MetadataPointer / TokenMetadata)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| MD.1 | same | initialize TokenMetadata in the mint, funded rent (TLV 130 bytes); size, extensions | ok; 234 -> 364, [MetadataPointer, TokenMetadata] | ok; 234 -> 364, [MetadataPointer, TokenMetadata] |
+| MD.2 | same | initialize TokenMetadata in the mint, underfunded rent (TLV 130 bytes); size, extensions | InsufficientFundsForRent (the mint); 234 -> 234, [MetadataPointer] | InsufficientFundsForRent (the mint); 234 -> 234, [MetadataPointer] |
+| MD.3 | same | pointer to an arbitrary foreign address | ok | ok |
+| MD.4 | same | transfer_checked on the pointer mint | ok | ok |
+ok
+test mint_close_authority ... 
+### mint_close_authority (research/02: MintCloseAuthority)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| MCA.1 | same | close the mint at supply 100 | ix 0: MintHasSupply (0x1c) | ix 0: MintHasSupply (0x1c) |
+| MCA.2 | same | close the mint at supply 0; mint account, token account | ok; mint gone, token account kept | ok; mint gone, token account kept |
+| MCA.3 | same | re-create at the same address with decimals 0 and a 10% fee; old account extensions | ok; [] | ok; [] |
+| MCA.4 | same | mint_to the old account under the new mint | ok | ok |
+| MCA.5 | same | fee-bearing transfer into the old account (no TransferFeeAmount); old balance | ix 0: InvalidState (0xd); 1000 | ix 0: InvalidState (0xd); 1000 |
+| MCA.6 | same | transfer out of the old account under the new mint | ok | ok |
+ok
+test mint_resurrection ... 
+### mint_resurrection (research/02: MintCloseAuthority, resurrection table)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| MCA.7 | same | re-created with DefaultAccountState(Frozen): old and new account state | old initialized, new frozen | old initialized, new frozen |
+| MCA.8 | same | frozen default: mint_to the old account | ok | ok |
+| MCA.9 | same | frozen default: the never-thawed old account transfers out | ok | ok |
+| MCA.10 | same | re-created NonTransferable: mint_to the old account | ix 0: NonTransferableNeedsImmutableOwnership (0x26) | ix 0: NonTransferableNeedsImmutableOwnership (0x26) |
+| MCA.11 | same | re-created with a 10% fee: transfer 1,000 out of the old account; destination | ok; 900 (+100 withheld) | ok; 900 (+100 withheld) |
+| MCA.12 | same | re-created with a transfer hook: transfer out of the old account | ix 0: InvalidAccountData | ix 0: InvalidAccountData |
+ok
+test non_transferable ... 
+### non_transferable (research/02: NonTransferable)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| NT.1 | same | token account: extensions, size | [NonTransferableAccount, ImmutableOwner], 174 | [NonTransferableAccount, ImmutableOwner], 174 |
+| NT.2 | same | deposit with transfer_checked | ix 0: NonTransferable (0x25) | ix 0: NonTransferable (0x25) |
+| NT.3 | same | owner burns | ok | ok |
+| NT.4 | same | owner closes the account after the burn | ok | ok |
+| NT.5 | same | InitializeAccount3 on a 165-byte account | ix 1: InvalidAccountData | ix 1: InvalidAccountData |
+ok
+test pausable ... 
+### pausable (research/02: Pausable)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| PAUSE.1 | same | token account: extensions, size | [PausableAccount], 170 | [PausableAccount], 170 |
+| PAUSE.2 | same | paused: withdraw with transfer_checked | ix 0: MintPaused (0x43) | ix 0: MintPaused (0x43) |
+| PAUSE.3 | same | paused: mint_to | ix 0: MintPaused (0x43) | ix 0: MintPaused (0x43) |
+| PAUSE.4 | same | paused: burn_checked | ix 0: MintPaused (0x43) | ix 0: MintPaused (0x43) |
+| PAUSE.5 | same | paused: Approve | ok | ok |
+| PAUSE.6 | same | paused: close an empty account | ok | ok |
+| PAUSE.7 | same | paused: legacy Transfer | ix 0: MintRequiredForTransfer (0x1f) | ix 0: MintRequiredForTransfer (0x1f) |
+| PAUSE.8 | same | resumed: withdraw | ok | ok |
+ok
+test permanent_delegate ... 
+### permanent_delegate (research/02: PermanentDelegate)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| PD.1 | same | create a vault account; warning logged | ok; Warning: Mint has a permanent delegate, so tokens in this account may be seized at any time | ok; Warning: Mint has a permanent delegate, so tokens in this account may be seized at any time |
+| PD.2 | same | delegate transfers 600 out of the vault, owner not signing | ok | ok |
+| PD.3 | same | delegate burns 400 from the vault, owner not signing; vault | ok; vault 0 | ok; vault 0 |
+ok
+test permissioned_burn ... 
+### permissioned_burn (research/02: PermissionedBurn)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| PB.1 | different | create a 202-byte mint with PermissionedBurn | ok | ix 1: InvalidInstruction (0xc) |
+| PB.2 | not probed | owner's standard BurnChecked | ix 0: InvalidInstruction (0xc) | Token-2022 10.0.0 has no PermissionedBurn (PB.1), so no such mint exists |
+| PB.3 | not probed | permissioned BurnChecked, burn authority co-signing | ok | Token-2022 10.0.0 has no PermissionedBurn (PB.1), so no such mint exists |
+ok
+test scaled_ui_amount ... 
+### scaled_ui_amount (research/02: ScaledUiAmount; InterestBearingConfig)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| SUA.1 | same | multiplier 1.0: raw balance, UI amount | raw 1000000, ui 1 | raw 1000000, ui 1 |
+| SUA.2 | same | schedule multiplier 2.0 at now + 1000 s; UI amount before then | ok; ui 1 | ok; ui 1 |
+| SUA.3 | same | after the effective time: raw, UI amount, UiAmountToAmount("1") | raw 1000000, ui 2, 500000 | raw 1000000, ui 2, 500000 |
+| SUA.4 | same | ScaledUiAmount + InterestBearingConfig on one mint | ix 3: InvalidExtensionCombination (0x33) | ix 3: InvalidExtensionCombination (0x33) |
+ok
+test token_group ... 
+### token_group (research/02: GroupPointer / TokenGroup / GroupMemberPointer / TokenGroupMember)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| GRP.1 | same | initialize_group in the mint, max_size 2; size, extensions | ok; 318, [GroupPointer, TokenGroup] | ok; 318, [GroupPointer, TokenGroup] |
+| GRP.2 | same | initialize_member #0 and #1 | ok, ok | ok, ok |
+| GRP.3 | same | initialize_member #2 (SizeExceedsMaxSize) | ix 0: Custom(3406457177) | ix 0: Custom(3406457177) |
+ok
+test transfer_fee_config ... 
+### transfer_fee_config (research/02: TransferFeeConfig)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| TF.1 | same | vault account: extensions, size | [TransferFeeAmount], 178 | [TransferFeeAmount], 178 |
+| TF.2 | same | deposit 10,000 at 100 bps; alice, vault | ok; alice 0, vault 9900 (+100 withheld) | ok; alice 0, vault 9900 (+100 withheld) |
+| TF.3 | same | withdraw the credited 10,000 | ix 0: InsufficientFunds (0x1) | ix 0: InsufficientFunds (0x1) |
+| TF.4 | same | withdraw the 9,900 held; alice, vault | ok; alice 9801 (+99 withheld), vault 0 (+100 withheld) | ok; alice 9801 (+99 withheld), vault 0 (+100 withheld) |
+| TF.5 | same | legacy Transfer (no mint) | ix 0: MintRequiredForTransfer (0x1f) | ix 0: MintRequiredForTransfer (0x1f) |
+| TF.6 | same | TransferCheckedWithFee 1,000 with expected fee 0 | ix 0: FeeMismatch (0x20) | ix 0: FeeMismatch (0x20) |
+| TF.7 | same | transfer 1 unit; bob | ok; bob 0 (+1 withheld) | ok; bob 0 (+1 withheld) |
+| TF.8 | same | close vault at balance 0 with 100 withheld | ix 0: AccountHasWithheldTransferFees (0x23) | ix 0: AccountHasWithheldTransferFees (0x23) |
+| TF.9 | same | HarvestWithheldTokensToMint from the vault | ok; signed by the fee payer only | ok; signed by the fee payer only |
+| TF.10 | same | close vault after the harvest | ok | ok |
+| TF.11 | same | SetTransferFee 100 -> 500 bps; 1,000 credited at epoch +0, +1, +2 | ok; 990, 990, 950 | ok; 990, 990, 950 |
+| TF.12 | same | InitializeAccount3 on a 165-byte account | ix 1: InvalidAccountData | ix 1: InvalidAccountData |
+ok
+test transfer_hook ... 
+### transfer_hook (research/02: TransferHook)
+
+| id | verdict | probe | research/02 (11.0.0) | observed (10.0.0) |
+|---|---|---|---|---|
+| HOOK.1 | same | token account: extensions, size | [TransferHookAccount], 171 | [TransferHookAccount], 171 |
+| HOOK.2 | same | transfer_checked, no extra accounts, hook program missing | ix 0: MissingAccount | ix 0: MissingAccount |
+| HOOK.3 | same | transfer_checked + the (missing) hook program account | ix 0: UnsupportedProgramId | ix 0: UnsupportedProgramId |
+| HOOK.4 | same | legacy Transfer (no mint) | ix 0: MintRequiredForTransfer (0x1f) | ix 0: MintRequiredForTransfer (0x1f) |
+| HOOK.5 | same | hook None: transfer_checked | ok | ok |
+| HOOK.6 | same | hook authority sets the hook to the memo program | ok | ok |
+| HOOK.7 | same | after the switch: same transfer_checked, no extra accounts | ix 0: MissingAccount | ix 0: MissingAccount |
+| HOOK.8 | same | after the switch: + hook program account | ix 0: MissingRequiredSignature, raised in the memo program | ix 0: MissingRequiredSignature, raised in the memo program |
+| HOOK.9 | same | after the switch: + nonexistent validation PDA + hook program | ix 0: InvalidAccountData | ix 0: InvalidAccountData |
+| HOOK.10 | same | after the switch: self-transfer, no extra accounts | ok | ok |
+ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+

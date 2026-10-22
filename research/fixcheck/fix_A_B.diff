@@ -1,0 +1,128 @@
+diff -ruN targets/escrow/programs/escrowq32026/src/fees.rs research/fixcheck/escrow_patched/programs/escrowq32026/src/fees.rs
+--- targets/escrow/programs/escrowq32026/src/fees.rs	1970-01-01 05:30:00
++++ research/fixcheck/escrow_patched/programs/escrowq32026/src/fees.rs	2026-10-21 21:51:48
+@@ -0,0 +1,38 @@
++// FIXCHECK ONLY (research/fixcheck): candidate fix B, harvest the vault's withheld
++// Token-2022 transfer fees to the mint right before the vault is closed.
++use anchor_lang::prelude::*;
++use anchor_spl::token_2022::spl_token_2022::{
++    self,
++    extension::{transfer_fee::TransferFeeAmount, BaseStateWithExtensions, StateWithExtensions},
++};
++
++pub fn harvest_vault_if_withheld<'info>(
++    token_program: &AccountInfo<'info>,
++    mint: &AccountInfo<'info>,
++    vault: &AccountInfo<'info>,
++) -> Result<()> {
++    if token_program.key() != spl_token_2022::ID {
++        return Ok(());
++    }
++    let withheld = {
++        let data = vault.try_borrow_data()?;
++        let state = StateWithExtensions::<spl_token_2022::state::Account>::unpack(&data)?;
++        state
++            .get_extension::<TransferFeeAmount>()
++            .map(|e| u64::from(e.withheld_amount))
++            .unwrap_or(0)
++    };
++    if withheld == 0 {
++        return Ok(());
++    }
++    let ix = spl_token_2022::extension::transfer_fee::instruction::harvest_withheld_tokens_to_mint(
++        token_program.key,
++        mint.key,
++        &[vault.key],
++    )?;
++    anchor_lang::solana_program::program::invoke(
++        &ix,
++        &[mint.clone(), vault.clone(), token_program.clone()],
++    )?;
++    Ok(())
++}
+diff -ruN targets/escrow/programs/escrowq32026/src/instructions/refund.rs research/fixcheck/escrow_patched/programs/escrowq32026/src/instructions/refund.rs
+--- targets/escrow/programs/escrowq32026/src/instructions/refund.rs	2026-10-21 21:39:17
++++ research/fixcheck/escrow_patched/programs/escrowq32026/src/instructions/refund.rs	2026-10-21 21:52:10
+@@ -10,11 +10,13 @@
+ pub struct Refund<'info> {
+     #[account(mut)]
+     maker: Signer<'info>,
++    #[account(mut, mint::token_program = token_program)]
+     mint_a: InterfaceAccount<'info, Mint>,
+     #[account(
+         mut,
+         associated_token::mint = mint_a,
+         associated_token::authority = maker,
++        associated_token::token_program = token_program,
+     )]
+     maker_ata_a: InterfaceAccount<'info, TokenAccount>,
+     #[account(
+@@ -30,6 +32,7 @@
+         mut,
+         associated_token::mint = mint_a,
+         associated_token::authority = escrow,
++        associated_token::token_program = token_program,
+     )]
+     vault: InterfaceAccount<'info, TokenAccount>,
+     token_program: Interface<'info, TokenInterface>,
+@@ -58,6 +61,13 @@
+         let cpi_context = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
+ 
+         transfer_checked(cpi_context, self.vault.amount, self.mint_a.decimals)?;
++
++        #[cfg(feature = "fix-b")]
++        crate::fees::harvest_vault_if_withheld(
++            &self.token_program.to_account_info(),
++            &self.mint_a.to_account_info(),
++            &self.vault.to_account_info(),
++        )?;
+ 
+         let cpi_accounts = CloseAccount {
+             account: self.vault.to_account_info(),
+diff -ruN targets/escrow/programs/escrowq32026/src/instructions/take.rs research/fixcheck/escrow_patched/programs/escrowq32026/src/instructions/take.rs
+--- targets/escrow/programs/escrowq32026/src/instructions/take.rs	2026-10-21 21:39:17
++++ research/fixcheck/escrow_patched/programs/escrowq32026/src/instructions/take.rs	2026-10-21 21:52:10
+@@ -11,7 +11,7 @@
+ pub struct Take<'info> {
+     #[account(mut)]
+     taker: Signer<'info>,
+-    #[account(mint::token_program = token_program)]
++    #[account(mut, mint::token_program = token_program)]
+     mint_a: Box<InterfaceAccount<'info, Mint>>,
+     #[account(mint::token_program = token_program)]
+     mint_b: Box<InterfaceAccount<'info, Mint>>,
+@@ -116,6 +116,13 @@
+         let cpi_context = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
+ 
+         transfer_checked(cpi_context, self.vault.amount, self.mint_a.decimals)?;
++
++        #[cfg(feature = "fix-b")]
++        crate::fees::harvest_vault_if_withheld(
++            &self.token_program.to_account_info(),
++            &self.mint_a.to_account_info(),
++            &self.vault.to_account_info(),
++        )?;
+ 
+         let cpi_accounts = CloseAccount {
+             account: self.vault.to_account_info(),
+diff -ruN targets/escrow/programs/escrowq32026/src/lib.rs research/fixcheck/escrow_patched/programs/escrowq32026/src/lib.rs
+--- targets/escrow/programs/escrowq32026/src/lib.rs	2026-10-21 21:39:17
++++ research/fixcheck/escrow_patched/programs/escrowq32026/src/lib.rs	2026-10-21 21:51:48
+@@ -1,5 +1,6 @@
+ pub mod constants;
+ pub mod error;
++pub mod fees;
+ pub mod instructions;
+ pub mod state;
+ 
+--- targets/escrow/programs/escrowq32026/Cargo.toml	2026-10-21 21:39:17
++++ research/fixcheck/escrow_patched/programs/escrowq32026/Cargo.toml	2026-10-21 21:52:10
+@@ -18,6 +18,8 @@
+ anchor-debug = []
+ custom-heap = []
+ custom-panic = []
++# FIXCHECK ONLY: candidate fix B (harvest withheld fees before closing the vault)
++fix-b = []
+ 
+ 
+ [dependencies]

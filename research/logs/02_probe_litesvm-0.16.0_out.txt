@@ -1,0 +1,173 @@
+===== s0_sizes
+SIZE mint+TransferFeeConfig = Ok(278); required account exts [TransferFeeAmount]; account len 178
+SIZE mint+MintCloseAuthority = Ok(202); required account exts []; account len 165
+SIZE mint+ConfidentialTransferMint = Ok(235); required account exts []; account len 165
+SIZE mint+DefaultAccountState = Ok(171); required account exts []; account len 165
+SIZE mint+NonTransferable = Ok(170); required account exts [NonTransferableAccount, ImmutableOwner]; account len 174
+SIZE mint+InterestBearingConfig = Ok(222); required account exts []; account len 165
+SIZE mint+PermanentDelegate = Ok(202); required account exts []; account len 165
+SIZE mint+TransferHook = Ok(234); required account exts [TransferHookAccount]; account len 171
+SIZE mint+ConfidentialTransferFeeConfig = Ok(299); required account exts []; account len 165
+SIZE mint+MetadataPointer = Ok(234); required account exts []; account len 165
+SIZE mint+GroupPointer = Ok(234); required account exts []; account len 165
+SIZE mint+TokenGroup = Ok(250); required account exts []; account len 165
+SIZE mint+GroupMemberPointer = Ok(234); required account exts []; account len 165
+SIZE mint+TokenGroupMember = Ok(242); required account exts []; account len 165
+SIZE mint+ScaledUiAmount = Ok(226); required account exts []; account len 165
+SIZE mint+Pausable = Ok(203); required account exts [PausableAccount]; account len 170
+SIZE mint+PermissionedBurn = Ok(202); required account exts []; account len 165
+SIZE mint+TokenMetadata = Err(InvalidArgument); required account exts []; account len 165
+SIZE account+TransferFeeAmount = Ok(178)
+SIZE account+ImmutableOwner = Ok(170)
+SIZE account+MemoTransfer = Ok(171)
+SIZE account+CpiGuard = Ok(171)
+SIZE account+NonTransferableAccount = Ok(170)
+SIZE account+TransferHookAccount = Ok(171)
+SIZE account+PausableAccount = Ok(170)
+SIZE account+ConfidentialTransferAccount = Ok(465)
+SIZE account+ConfidentialTransferFeeAmount = Ok(234)
+TransferFeeConfig=1 TransferFeeAmount=2 MintCloseAuthority=3 ConfidentialTransferMint=4 ConfidentialTransferAccount=5 DefaultAccountState=6 ImmutableOwner=7 MemoTransfer=8 NonTransferable=9 InterestBearingConfig=10 CpiGuard=11 PermanentDelegate=12 NonTransferableAccount=13 TransferHook=14 TransferHookAccount=15 ConfidentialTransferFeeConfig=16 ConfidentialTransferFeeAmount=17 MetadataPointer=18 TokenMetadata=19 GroupPointer=20 TokenGroup=21 GroupMemberPointer=22 TokenGroupMember=23 ConfidentialMintBurn=24 ScaledUiAmount=25 Pausable=26 PausableAccount=27 PermissionedBurn=28 
+SIZE base mint = Ok(82), base account = Ok(165)
+===== s1_transfer_fee
+INFO tf vault account exts [TransferFeeAmount], len 178
+PROBE tf deposit 10000 transfer_checked: OK
+PROBE tf after deposit: alice=0 vault=9900 vault_withheld=100
+PROBE tf withdraw recorded 10000 from vault: FAIL InstructionError(0, Custom(1)) => TokenError::InsufficientFunds (0x1) | logs: ["Program log: Error: insufficient funds", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x1"]
+PROBE tf withdraw actual 9900 from vault: OK
+PROBE tf after withdraw: alice=9801 vault=0 alice_withheld=99 vault_withheld=100
+PROBE tf legacy Transfer (no mint): FAIL InstructionError(0, Custom(31)) => TokenError::MintRequiredForTransfer (0x1f) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x1f"]
+PROBE tf transfer_checked_with_fee wrong fee=0: FAIL InstructionError(0, Custom(32)) => TokenError::FeeMismatch (0x20) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x20"]
+PROBE tf transfer amount=1: OK
+PROBE tf after amount=1: bob=0 bob_withheld=1
+PROBE tf close vault with balance 0 and withheld>0: FAIL InstructionError(0, Custom(35)) => TokenError::AccountHasWithheldTransferFees (0x23) | logs: ["Program log: Error: An account can only be closed if its withheld fee balance is zero, harvest fees to the mint and try again", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x23"]
+PROBE tf harvest vault withheld to mint (payer only signs): OK
+PROBE tf close vault after harvest: OK
+PROBE tf set_transfer_fee 500 bps: OK
+PROBE tf transfer 1000 right after fee change: OK
+PROBE tf credited for 1000 right after fee change = 990
+PROBE tf transfer 1000 at epoch+1: OK
+PROBE tf credited for 1000 at epoch+1 = 990
+PROBE tf transfer 1000 at epoch+2: OK
+PROBE tf credited for 1000 at epoch+2 = 950
+PROBE tf InitializeAccount3 on 165-byte account: FAIL InstructionError(1, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+===== s2_default_frozen
+PROBE das frozen mint WITHOUT freeze authority: FAIL InstructionError(2, Custom(16)) => TokenError::MintCannotFreeze (0x10) | logs: ["Program log: Error: This token mint cannot freeze accounts", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x10"]
+PROBE das new accounts frozen: alice=true vault=true
+PROBE das mint_to frozen account: FAIL InstructionError(0, Custom(17)) => TokenError::AccountFrozen (0x11) | logs: ["Program log: Error: Account is frozen", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x11"]
+PROBE das deposit into frozen vault: FAIL InstructionError(0, Custom(17)) => TokenError::AccountFrozen (0x11) | logs: ["Program log: Error: Account is frozen", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x11"]
+PROBE das deposit after thaw: OK
+PROBE das withdraw from vault frozen later by freeze authority: FAIL InstructionError(0, Custom(17)) => TokenError::AccountFrozen (0x11) | logs: ["Program log: Error: Account is frozen", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x11"]
+PROBE das update default to Initialized by freeze authority: OK
+PROBE das account created after update frozen=false
+===== s3_non_transferable
+INFO nt account exts [NonTransferableAccount, ImmutableOwner]
+PROBE nt deposit transfer_checked: FAIL InstructionError(0, Custom(37)) => TokenError::NonTransferable (0x25) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x25"]
+PROBE nt owner burn: OK
+PROBE nt owner close after burn: OK
+PROBE nt InitializeAccount3 on 165-byte account: FAIL InstructionError(1, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+===== s4_memo
+PROBE memo deposit without memo: FAIL InstructionError(0, Custom(36)) => TokenError::NoMemo (0x24) | logs: ["Program log: Error: No memo in previous instruction required for recipient to receive a transfer", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x24"]
+PROBE memo deposit with memo before transfer: OK
+PROBE memo deposit with memo AFTER transfer: FAIL InstructionError(0, Custom(36)) => TokenError::NoMemo (0x24) | logs: ["Program log: Error: No memo in previous instruction required for recipient to receive a transfer", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x24"]
+PROBE memo withdraw out of memo-required vault, no memo: OK
+INFO memo alice len before realloc 165
+PROBE memo user reallocates own account for MemoTransfer: OK
+INFO memo alice len after realloc 171
+PROBE memo protocol withdraw to user who enabled memo, no memo: FAIL InstructionError(0, Custom(36)) => TokenError::NoMemo (0x24) | logs: ["Program log: Error: No memo in previous instruction required for recipient to receive a transfer", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x24"]
+PROBE memo protocol withdraw to user with memo first: OK
+===== s5_cpi_guard_top_level
+INFO cpi account exts before enable []
+INFO cpi account exts after enable [CpiGuard]
+PROBE cpi guard top-level owner transfer: OK
+PROBE cpi guard top-level approve: OK
+PROBE cpi guard top-level SetAuthority(AccountOwner): FAIL InstructionError(0, Custom(47)) => TokenError::CpiGuardOwnerChangeBlocked (0x2f) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x2f"]
+===== s6_permanent_delegate
+PROBE pd create vault account: OK
+PROBE pd InitializeAccount3 warning log: ["Program log: Warning: Mint has a permanent delegate, so tokens in this account may be seized at any time"]
+PROBE pd delegate transfers out of vault, vault owner not signing: OK
+PROBE pd delegate burns from vault, vault owner not signing: OK
+PROBE pd vault balance after = 0
+===== s7_interest_bearing
+PROBE ib t0 raw=1000000000 ui=1000
+PROBE ib t+1y raw=1000000000 ui=1051.236557 ui_to_amount("1000")=951260678
+PROBE ib rate authority sets negative rate -1000 bps: OK
+PROBE ib t+2y raw=1000000000 ui=951.260678
+===== s8_scaled_ui
+PROBE sua t0 raw=1000000 ui=1
+PROBE sua schedule multiplier 2.0 at now+1000: OK
+PROBE sua before effective time raw=1000000 ui=1
+PROBE sua after effective time raw=1000000 ui=2 ui_to_amount("1")=500000
+PROBE sua + interest bearing on one mint: FAIL InstructionError(3, Custom(51)) => TokenError::InvalidExtensionCombination (0x33) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x33"]
+===== s9_pausable
+INFO pausable account exts [PausableAccount]
+PROBE paused withdraw transfer_checked: FAIL InstructionError(0, Custom(67)) => TokenError::MintPaused (0x43) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x43"]
+PROBE paused mint_to: FAIL InstructionError(0, Custom(67)) => TokenError::MintPaused (0x43) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x43"]
+PROBE paused burn: FAIL InstructionError(0, Custom(67)) => TokenError::MintPaused (0x43) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x43"]
+PROBE paused approve: OK
+PROBE paused close empty account: OK
+PROBE paused legacy Transfer: FAIL InstructionError(0, Custom(31)) => TokenError::MintRequiredForTransfer (0x1f) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x1f"]
+PROBE resumed withdraw: OK
+===== s10_mint_close
+PROBE mca close mint with supply 100: FAIL InstructionError(0, Custom(28)) => TokenError::MintHasSupply (0x1c) | logs: ["Program log: Error: Mint has non-zero supply. Burn all tokens before closing the mint", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x1c"]
+PROBE mca close mint with supply 0: OK
+PROBE mca mint account exists after close: false
+PROBE mca old token account still exists: true
+PROBE mca re-create mint at same address with decimals 0 + 10% fee: OK
+INFO mca old account exts []
+PROBE mca mint_to OLD account under re-created mint: OK
+PROBE mca fee-bearing transfer INTO old account lacking TransferFeeAmount: FAIL InstructionError(0, Custom(13)) => TokenError::InvalidState (0xd) | logs: ["Program log: Error: Invalid account state for operation", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0xd"]
+PROBE mca old account balance after = 1000
+PROBE mca transfer OUT of old account under re-created mint: OK
+===== s11_immutable_owner
+PROBE io SetAuthority(AccountOwner) on account without ImmutableOwner: OK
+PROBE io SetAuthority(AccountOwner) on ImmutableOwner account: FAIL InstructionError(0, Custom(34)) => TokenError::ImmutableOwner (0x22) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x22"]
+PROBE io create ATA for Token-2022 mint: OK
+PROBE io ATA exts [ImmutableOwner]
+PROBE io SetAuthority(AccountOwner) on Token-2022 ATA: FAIL InstructionError(0, Custom(34)) => TokenError::ImmutableOwner (0x22) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x22"]
+PROBE io GetAccountDataSize(TF+Pausable+Hook mint) = 187; with ImmutableOwner = 191; host calc = 187
+PROBE io create ATA (idempotent) for TF+Pausable+Hook mint: OK
+PROBE io ATA(multi) exts [ImmutableOwner, TransferFeeAmount, PausableAccount, TransferHookAccount] len 191
+===== s12_transfer_hook
+INFO hook account exts [TransferHookAccount]
+PROBE hook transfer_checked, no extra accounts, hook program does not exist: FAIL InstructionError(0, MissingAccount) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: An account required by the instruction is missing"]
+PROBE hook transfer_checked + hook program id account (non-existent): FAIL InstructionError(0, UnsupportedProgramId) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: Unsupported program id"]
+PROBE hook legacy Transfer: FAIL InstructionError(0, Custom(31)) => TokenError::MintRequiredForTransfer (0x1f) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x1f"]
+PROBE hook(None) transfer_checked: OK
+PROBE hook authority switches hook program on (memo program id): OK
+PROBE hook(after switch) same transfer_checked, no extra accounts: FAIL InstructionError(0, MissingAccount) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: An account required by the instruction is missing"]
+PROBE hook(after switch) transfer_checked + hook program account: FAIL InstructionError(0, MissingRequiredSignature) | logs: ["Program MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr failed: missing required signature for instruction", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: missing required signature for instruction"]
+PROBE hook(after switch) transfer_checked + validation PDA + hook program: FAIL InstructionError(0, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+PROBE hook(after switch) self-transfer, no extra accounts: OK
+===== s13_metadata
+PROBE md initialize TokenMetadata in mint (funded lamports): OK
+PROBE md funded: len before 234, after 364, computed tlv 130, exts [MetadataPointer, TokenMetadata]
+PROBE md initialize TokenMetadata in mint (underfunded lamports): FAIL InsufficientFundsForRent { account_index: 1 } | logs: []
+PROBE md underfunded: len before 234, after 234, computed tlv 130, exts [MetadataPointer]
+PROBE md pointer to arbitrary foreign address: OK
+PROBE md transfer_checked on pointer mint: OK
+===== s14_group
+PROBE group initialize_group in mint: OK
+PROBE group mint len 318, exts [GroupPointer, TokenGroup]
+PROBE group initialize_member #0 (max_size 2): OK
+PROBE group initialize_member #1 (max_size 2): OK
+PROBE group initialize_member #2 (max_size 2): FAIL InstructionError(0, Custom(3406457177)) | logs: ["Program log: Error: Unknown", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0xcb0a6959"]
+===== s15_confidential
+INFO ct plain account exts []
+PROBE ct public transfer_checked between unconfigured accounts: OK
+PROBE ct + transfer fee without ConfidentialTransferFeeConfig: FAIL InstructionError(3, Custom(51)) => TokenError::InvalidExtensionCombination (0x33) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x33"]
+PROBE ct + non-transferable without ConfidentialMintBurn: FAIL InstructionError(3, Custom(51)) => TokenError::InvalidExtensionCombination (0x33) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x33"]
+===== s16_ordering
+PROBE order: InitializeMint2 BEFORE transfer fee init on sized account: FAIL InstructionError(1, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+PROBE order: transfer fee init on 82-byte mint account: FAIL InstructionError(1, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+PROBE order: space for TransferFeeConfig reserved but extension never initialized: FAIL InstructionError(1, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+===== s17_resurrection
+PROBE res(DAS frozen) old account frozen=false fresh account frozen=true
+PROBE res(DAS frozen) mint_to old unfrozen account: OK
+PROBE res(DAS frozen) old account transfers without ever being thawed: OK
+PROBE res(NonTransferable) mint_to old account: FAIL InstructionError(0, Custom(38)) => TokenError::NonTransferableNeedsImmutableOwnership (0x26) | logs: ["Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x26"]
+PROBE res(TransferFee 10%) transfer 1000 OUT of old account: OK
+PROBE res(TransferFee) dst credited=900 dst withheld=100
+PROBE res(TransferHook fake program) transfer OUT of old account, no extra accounts: FAIL InstructionError(0, InvalidAccountData) | logs: ["Program log: Error: InvalidAccountData", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: invalid account data for instruction"]
+===== s18_permissioned_burn
+PROBE pb owner standard BurnChecked: FAIL InstructionError(0, Custom(12)) => TokenError::InvalidInstruction (0xc) | logs: ["Program log: Error: Invalid instruction", "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0xc"]
+PROBE pb permissioned BurnChecked with burn authority co-sign: OK

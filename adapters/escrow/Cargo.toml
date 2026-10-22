@@ -1,0 +1,23 @@
+[package]
+name = "extensionlab-adapter-escrow"
+description = "ExtensionLab adapter for the Turbin3 Q3 2026 Anchor escrow in targets/escrow."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "extensionlab-escrow"
+path = "src/main.rs"
+
+[dependencies]
+extensionlab-core.workspace = true
+extensionlab-cli.workspace = true
+litesvm.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-sha256-hasher.workspace = true
+solana-system-interface.workspace = true
+spl-associated-token-account-interface.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

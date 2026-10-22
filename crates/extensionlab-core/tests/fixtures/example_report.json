@@ -1,0 +1,653 @@
+{
+  "schema_version": "0.1.0",
+  "tool": {
+    "name": "extensionlab",
+    "version": "0.1.0"
+  },
+  "environment": {
+    "litesvm": "0.10.0",
+    "programs": [
+      {
+        "name": "spl_token",
+        "program_id": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "source": "bundled with litesvm 0.10.0 (spl_token-3.5.0.so)"
+      },
+      {
+        "name": "spl_token_2022",
+        "program_id": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+        "source": "bundled with litesvm 0.10.0 (spl_token_2022-10.0.0.so)"
+      },
+      {
+        "name": "escrowq32026",
+        "program_id": "9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t",
+        "source": "targets/escrow/target/deploy/escrowq32026.so"
+      }
+    ]
+  },
+  "adapter": {
+    "name": "escrow",
+    "description": "ILLUSTRATIVE EXAMPLE, hand-written to document the schema; not written by the runner (which is not implemented). Runs 2 and 3 copy the logs and compute units observed in research/01_repro_escrow_fee_token.md (deposit 10,000,000, receive 7,000,000, fee 200 bps uncapped). Run 1 is the expected baseline outcome. Run 4 is hypothetical: it was not run against the escrow. Signatures are placeholders and compute units of 0 mean not measured."
+  },
+  "matrix": {
+    "name": "default",
+    "strategy": "one_slot_at_a_time",
+    "cases": 4
+  },
+  "summary": {
+    "total": 4,
+    "pass": 1,
+    "rejected": 1,
+    "fail": 2,
+    "error": 0
+  },
+  "runs": [
+    {
+      "id": "spl_token/make_refund",
+      "slots": {
+        "mint_a": {
+          "label": "spl_token",
+          "program": "spl_token",
+          "decimals": 6
+        },
+        "mint_b": {
+          "label": "spl_token",
+          "program": "spl_token",
+          "decimals": 6
+        }
+      },
+      "baseline": true,
+      "scenario": {
+        "name": "make_refund",
+        "steps": [
+          {
+            "type": "flow",
+            "name": "make"
+          },
+          {
+            "type": "flow",
+            "name": "refund"
+          }
+        ]
+      },
+      "status": "pass",
+      "steps": [
+        {
+          "index": 0,
+          "step": {
+            "type": "flow",
+            "name": "make"
+          },
+          "outcome": "succeeded",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-1",
+              "compute_units": 0,
+              "fee_lamports": 5000,
+              "logs": []
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "step": {
+            "type": "flow",
+            "name": "refund"
+          },
+          "outcome": "succeeded",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-2",
+              "compute_units": 0,
+              "fee_lamports": 5000,
+              "logs": []
+            }
+          ]
+        }
+      ],
+      "balances": [
+        {
+          "label": "maker_ata_a",
+          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+          "slot": "mint_a",
+          "before": 100000000,
+          "expected_after": 100000000,
+          "actual_after": 100000000,
+          "withheld_after": 0,
+          "exists_after": true
+        },
+        {
+          "label": "vault",
+          "address": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+          "slot": "mint_a",
+          "before": 0,
+          "expected_after": 0,
+          "actual_after": 0,
+          "withheld_after": 0,
+          "exists_after": false
+        }
+      ],
+      "invariants": [
+        {
+          "invariant": "conservation",
+          "slot": "mint_a",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "conservation",
+          "slot": "mint_b",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "expected_balances",
+          "status": "held",
+          "detail": "2 account(s) changed as expected"
+        },
+        {
+          "invariant": "credited_equals_received",
+          "status": "skipped",
+          "detail": "adapter exposes no credit readers"
+        },
+        {
+          "invariant": "refundability",
+          "status": "held",
+          "detail": "exit flow `refund` returned 10000000 of 10000000 (fee-explained loss 0)"
+        },
+        {
+          "invariant": "closeability",
+          "status": "held",
+          "detail": "1 account(s) closed"
+        }
+      ]
+    },
+    {
+      "id": "token_2022/make_refund",
+      "slots": {
+        "mint_a": {
+          "label": "token_2022",
+          "program": "token_2022",
+          "decimals": 6
+        },
+        "mint_b": {
+          "label": "token_2022",
+          "program": "token_2022",
+          "decimals": 6
+        }
+      },
+      "baseline": false,
+      "scenario": {
+        "name": "make_refund",
+        "steps": [
+          {
+            "type": "flow",
+            "name": "make"
+          },
+          {
+            "type": "flow",
+            "name": "refund"
+          }
+        ]
+      },
+      "status": "fail",
+      "steps": [
+        {
+          "index": 0,
+          "step": {
+            "type": "flow",
+            "name": "make"
+          },
+          "outcome": "succeeded",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-3",
+              "compute_units": 40216,
+              "fee_lamports": 5000,
+              "logs": []
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "step": {
+            "type": "flow",
+            "name": "refund"
+          },
+          "outcome": "failed",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-4",
+              "compute_units": 9042,
+              "fee_lamports": 5000,
+              "error": "InstructionError(0, Custom(2009))",
+              "logs": [
+                "Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]",
+                "Program log: Instruction: Refund",
+                "Program log: AnchorError caused by account: maker_ata_a. Error Code: ConstraintAssociated. Error Number: 2009. Error Message: An associated constraint was violated.",
+                "Program log: Left:",
+                "Program log: 9fPwwhdpPsfYXkAoRYXnEZ43VHNhsF8G6vhahdGGbagJ",
+                "Program log: Right:",
+                "Program log: 9zAjdu6G3AYdQrbQLes9MWto2ueq83W1gkyPgkAk8fkp",
+                "Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 9042 of 200000 compute units",
+                "Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x7d9"
+              ]
+            }
+          ]
+        }
+      ],
+      "balances": [
+        {
+          "label": "maker_ata_a",
+          "address": "9fPwwhdpPsfYXkAoRYXnEZ43VHNhsF8G6vhahdGGbagJ",
+          "slot": "mint_a",
+          "before": 100000000,
+          "expected_after": 100000000,
+          "actual_after": 90000000,
+          "withheld_after": 0,
+          "exists_after": true
+        },
+        {
+          "label": "vault",
+          "address": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+          "slot": "mint_a",
+          "before": 0,
+          "expected_after": 0,
+          "actual_after": 10000000,
+          "withheld_after": 0,
+          "exists_after": true
+        }
+      ],
+      "invariants": [
+        {
+          "invariant": "conservation",
+          "slot": "mint_a",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "conservation",
+          "slot": "mint_b",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "expected_balances",
+          "status": "violated",
+          "detail": "maker_ata_a: expected 100000000, actual 90000000 (short 10000000); vault: expected 0, actual 10000000 (over 10000000)"
+        },
+        {
+          "invariant": "credited_equals_received",
+          "status": "skipped",
+          "detail": "adapter exposes no credit readers"
+        },
+        {
+          "invariant": "refundability",
+          "status": "violated",
+          "detail": "exit flow `refund` failed after a successful entry; 10000000 base units stay in custody: InstructionError(0, Custom(2009))"
+        },
+        {
+          "invariant": "closeability",
+          "status": "skipped",
+          "detail": "exit flow did not succeed"
+        }
+      ],
+      "diagnosis": {
+        "rule": "token_2022.ata_constraint_without_program",
+        "scope": "token_2022",
+        "assumption": "An Anchor `associated_token` constraint without `associated_token::token_program` accepts Token-2022 accounts. Anchor 1.1.2 then derives the expected address with the legacy SPL Token program id, so every Token-2022 associated token account fails the check.",
+        "evidence": "Program log: AnchorError caused by account: maker_ata_a. Error Code: ConstraintAssociated. Error Number: 2009. Error Message: An associated constraint was violated."
+      }
+    },
+    {
+      "id": "transfer_fee_200bps@mint_a/make_take",
+      "slots": {
+        "mint_a": {
+          "label": "transfer_fee_200bps",
+          "program": "token_2022",
+          "decimals": 6,
+          "extensions": [
+            {
+              "kind": "transfer_fee",
+              "basis_points": 200,
+              "maximum_fee": 18446744073709551615
+            }
+          ]
+        },
+        "mint_b": {
+          "label": "token_2022",
+          "program": "token_2022",
+          "decimals": 6
+        }
+      },
+      "varied_slot": "mint_a",
+      "baseline": false,
+      "scenario": {
+        "name": "make_take",
+        "steps": [
+          {
+            "type": "flow",
+            "name": "make"
+          },
+          {
+            "type": "flow",
+            "name": "take"
+          }
+        ]
+      },
+      "status": "fail",
+      "steps": [
+        {
+          "index": 0,
+          "step": {
+            "type": "flow",
+            "name": "make"
+          },
+          "outcome": "succeeded",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-5",
+              "compute_units": 48444,
+              "fee_lamports": 5000,
+              "logs": []
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "step": {
+            "type": "flow",
+            "name": "take"
+          },
+          "outcome": "failed",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-6",
+              "compute_units": 72979,
+              "fee_lamports": 5000,
+              "error": "InstructionError(0, Custom(35))",
+              "logs": [
+                "Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t invoke [1]",
+                "Program log: Instruction: Take",
+                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]",
+                "Program log: Create",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]",
+                "Program log: Instruction: GetAccountDataSize",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1352 of 185474 compute units",
+                "Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb tgAAAAAAAAA=",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program 11111111111111111111111111111111 invoke [3]",
+                "Program 11111111111111111111111111111111 success",
+                "Program log: Initialize the associated token account",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]",
+                "Program log: Instruction: InitializeImmutableOwner",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 179300 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]",
+                "Program log: Instruction: InitializeAccount3",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 2323 of 176291 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 17045 of 190730 compute units",
+                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success",
+                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL invoke [2]",
+                "Program log: Create",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]",
+                "Program log: Instruction: GetAccountDataSize",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1155 of 162002 compute units",
+                "Program return: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb qgAAAAAAAAA=",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program 11111111111111111111111111111111 invoke [3]",
+                "Program 11111111111111111111111111111111 success",
+                "Program log: Initialize the associated token account",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]",
+                "Program log: Instruction: InitializeImmutableOwner",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 674 of 156025 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [3]",
+                "Program log: Instruction: InitializeAccount3",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1516 of 153015 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL consumed 16140 of 167335 compute units",
+                "Program ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL success",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]",
+                "Program log: Instruction: TransferChecked",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1961 of 137455 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]",
+                "Program log: Instruction: TransferChecked",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 3086 of 133603 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb success",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb invoke [2]",
+                "Program log: Instruction: CloseAccount",
+                "Program log: Error: An account can only be closed if its withheld fee balance is zero, harvest fees to the mint and try again",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb consumed 1772 of 128793 compute units",
+                "Program TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb failed: custom program error: 0x23",
+                "Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t consumed 72979 of 200000 compute units",
+                "Program 9RsyeAzAeTGHDARy5VRDfzhTkrVZChnvjsVzVmbEX54t failed: custom program error: 0x23"
+              ]
+            }
+          ]
+        }
+      ],
+      "balances": [
+        {
+          "label": "maker_ata_a",
+          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+          "slot": "mint_a",
+          "before": 100000000,
+          "expected_after": 90000000,
+          "actual_after": 90000000,
+          "withheld_after": 0,
+          "exists_after": true
+        },
+        {
+          "label": "maker_ata_b",
+          "address": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+          "slot": "mint_b",
+          "before": 0,
+          "expected_after": 7000000,
+          "actual_after": 0,
+          "withheld_after": 0,
+          "exists_after": false
+        },
+        {
+          "label": "taker_ata_a",
+          "address": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+          "slot": "mint_a",
+          "before": 0,
+          "expected_after": 10000000,
+          "actual_after": 0,
+          "withheld_after": 0,
+          "exists_after": false
+        },
+        {
+          "label": "taker_ata_b",
+          "address": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+          "slot": "mint_b",
+          "before": 100000000,
+          "expected_after": 93000000,
+          "actual_after": 100000000,
+          "withheld_after": 0,
+          "exists_after": true
+        },
+        {
+          "label": "vault",
+          "address": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+          "slot": "mint_a",
+          "before": 0,
+          "expected_after": 0,
+          "actual_after": 9800000,
+          "withheld_after": 200000,
+          "exists_after": true
+        }
+      ],
+      "invariants": [
+        {
+          "invariant": "conservation",
+          "slot": "mint_a",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "conservation",
+          "slot": "mint_b",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "expected_balances",
+          "status": "violated",
+          "detail": "maker_ata_b: expected 7000000, actual 0 (short 7000000); taker_ata_a: expected 10000000, actual 0 (short 10000000); taker_ata_b: expected 93000000, actual 100000000 (over 7000000); vault: expected 0, actual 9800000 (over 9800000)"
+        },
+        {
+          "invariant": "credited_equals_received",
+          "status": "skipped",
+          "detail": "adapter exposes no credit readers"
+        },
+        {
+          "invariant": "refundability",
+          "status": "violated",
+          "detail": "exit flow `take` failed after a successful entry; 10000000 base units stay in custody: InstructionError(0, Custom(35))"
+        },
+        {
+          "invariant": "closeability",
+          "status": "skipped",
+          "detail": "exit flow did not succeed"
+        }
+      ],
+      "diagnosis": {
+        "rule": "transfer_fee.close_with_withheld",
+        "scope": "transfer_fee",
+        "assumption": "A custody token account can be closed once its `amount` has been transferred out. With TransferFee, fees withheld in the account block CloseAccount until someone harvests them to the mint.",
+        "evidence": "Program log: Error: An account can only be closed if its withheld fee balance is zero, harvest fees to the mint and try again"
+      }
+    },
+    {
+      "id": "non_transferable@mint_a/make_take",
+      "slots": {
+        "mint_a": {
+          "label": "non_transferable",
+          "program": "token_2022",
+          "decimals": 6,
+          "extensions": [
+            {
+              "kind": "non_transferable"
+            }
+          ]
+        },
+        "mint_b": {
+          "label": "token_2022",
+          "program": "token_2022",
+          "decimals": 6
+        }
+      },
+      "varied_slot": "mint_a",
+      "baseline": false,
+      "scenario": {
+        "name": "make_take",
+        "steps": [
+          {
+            "type": "flow",
+            "name": "make"
+          },
+          {
+            "type": "flow",
+            "name": "take"
+          }
+        ]
+      },
+      "status": "rejected",
+      "steps": [
+        {
+          "index": 0,
+          "step": {
+            "type": "flow",
+            "name": "make"
+          },
+          "outcome": "failed",
+          "transactions": [
+            {
+              "signature": "EXAMPLE-sig-7",
+              "compute_units": 0,
+              "fee_lamports": 5000,
+              "error": "InstructionError(0, Custom(37))",
+              "logs": [
+                "Program log: Transfer is disabled for this mint"
+              ]
+            }
+          ]
+        },
+        {
+          "index": 1,
+          "step": {
+            "type": "flow",
+            "name": "take"
+          },
+          "outcome": "skipped",
+          "transactions": []
+        }
+      ],
+      "balances": [
+        {
+          "label": "maker_ata_a",
+          "address": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+          "slot": "mint_a",
+          "before": 100000000,
+          "expected_after": 100000000,
+          "actual_after": 100000000,
+          "withheld_after": 0,
+          "exists_after": true
+        },
+        {
+          "label": "vault",
+          "address": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+          "slot": "mint_a",
+          "before": 0,
+          "expected_after": 0,
+          "actual_after": 0,
+          "withheld_after": 0,
+          "exists_after": false
+        }
+      ],
+      "invariants": [
+        {
+          "invariant": "conservation",
+          "slot": "mint_a",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "conservation",
+          "slot": "mint_b",
+          "status": "held",
+          "detail": "tracked accounts changed by 0, mint withheld pool by 0, supply by 0"
+        },
+        {
+          "invariant": "expected_balances",
+          "status": "held",
+          "detail": "2 account(s) changed as expected"
+        },
+        {
+          "invariant": "credited_equals_received",
+          "status": "skipped",
+          "detail": "adapter exposes no credit readers"
+        },
+        {
+          "invariant": "refundability",
+          "status": "skipped",
+          "detail": "entry flow did not succeed"
+        },
+        {
+          "invariant": "closeability",
+          "status": "skipped",
+          "detail": "entry flow did not succeed"
+        }
+      ],
+      "diagnosis": {
+        "rule": "non_transferable.transferable",
+        "scope": "non_transferable",
+        "assumption": "Every mint the protocol handles can be transferred. A NonTransferable mint cannot be transferred at all, so every flow that moves it fails. If the entry flow moved it, the protocol refused the deposit atomically; if a later flow moves it, funds that already entered custody stay there.",
+        "evidence": "Program log: Transfer is disabled for this mint"
+      }
+    }
+  ]
+}

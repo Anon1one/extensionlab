@@ -1,0 +1,39 @@
+     Running unittests src/lib.rs (target/debug/deps/escrowq32026-bc04f45852db969c)
+test test_id ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/fixcheck.rs (target/debug/deps/fixcheck-a8e92ff5f87661fb)
+test fix_b_refund_fee_mint_a_succeeds_without_client_harvest ... ok
+test fix_b_take_plain_token2022_does_not_harvest ... ok
+test fix_b_take_fee_mint_a_succeeds_without_client_harvest ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests/mod.rs (target/debug/deps/mod-6453a1c643c5b7ad)
+test test_make_and_refund ... ok
+test test_take_creates_missing_atas ... ok
+test test_make_and_take ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+     Running tests/token2022_fees.rs (target/debug/deps/token2022_fees-d1e383995c6e3a88)
+test limit_mixed_token_programs_rejected_at_make ... ok
+test a_fee_mint_a_make_vault_holds_less_than_deposit ... ok
+test repro_c_fee_mint_a_refund_rejected_before_close ... FAILED
+test b_fee_mint_b_take_maker_receives_less_than_receive ... ok
+test repro_refund_rejected_for_any_token2022_mint ... FAILED
+test limit_maker_cannot_self_take_with_one_wallet ... ok
+test d_fee_mint_b_issuer_fee_change_after_make_cuts_maker_net ... ok
+test repro_b_fee_both_mints_take_fails_closing_vault ... FAILED
+test d_fee_mint_b_gross_up_receive_gives_maker_exact_net ... ok
+test control_plain_token2022_make_and_take ... ok
+test b_fee_mint_a_take_succeeds_after_permissionless_harvest ... ok
+test b_fee_mint_a_take_succeeds_with_harvest_prepended_in_same_tx ... ok
+test repro_expired_token2022_escrow_is_locked_forever ... FAILED
+test d_fee_mint_b_max_receive_bounds_gross_not_net ... ok
+test repro_b_fee_mint_a_take_fails_closing_vault_with_withheld_fees ... FAILED
+test rule_token2022_refuses_to_close_account_with_withheld_fees ... ok
+thread 'repro_c_fee_mint_a_refund_rejected_before_close' (2536271) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+thread 'repro_refund_rejected_for_any_token2022_mint' (2536273) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+thread 'repro_b_fee_both_mints_take_fails_closing_vault' (2536269) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+thread 'repro_expired_token2022_escrow_is_locked_forever' (2536272) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+thread 'repro_b_fee_mint_a_take_fails_closing_vault_with_withheld_fees' (2536270) panicked at programs/escrowq32026/tests/token2022_fees.rs:175:13:
+test result: FAILED. 11 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+error: test failed, to rerun pass `--test token2022_fees`
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+error: 1 target failed:
