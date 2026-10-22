@@ -12,6 +12,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   host:
     runs-on: ubuntu-latest
@@ -22,8 +25,8 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
 
   program-examples:
     runs-on: ubuntu-latest
@@ -54,6 +57,13 @@ jobs:
         run: |
           cargo run --locked -p extensionlab-adapter-program-examples-escrow -- regress extensionlab-report/program-examples/report.json --run transfer_fee_200bps@mint_a/make_offer_refund_offer --expect observed --adapter-expr 'extensionlab_adapter_program_examples_escrow::boxed()' --out adapters/program-examples-escrow/tests/generated_fee_close.rs
           cargo test --locked -p extensionlab-adapter-program-examples-escrow
+      - name: Exercise the reusable action against a same-build reference
+        uses: ./
+        with:
+          binary: target/debug/extensionlab-program-examples-escrow
+          adapter: program-examples-escrow
+          baseline-report: extensionlab-report/program-examples/report.json
+          out: extensionlab-report/action-check
       - name: Publish job summary
         if: always()
         run: |
@@ -67,3 +77,35 @@ jobs:
           path: |
             extensionlab-report/program-examples/
             adapters/program-examples-escrow/tests/generated_fee_close.rs
+            extensionlab-report/action-check/
+
+  exported-regression:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_BUILD_JOBS: "4"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned Solana build tools
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://release.anza.xyz/v3.1.10/install -o "$RUNNER_TEMP/install-solana.sh"
+          sh "$RUNNER_TEMP/install-solana.sh"
+          printf '%s\n' "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Build the original escrow
+        working-directory: targets/escrow
+        run: cargo build-sbf --tools-version v1.52 -- --locked
+      - name: Run the original escrow golden tests against its binary
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: |
+          test -f targets/escrow/target/deploy/escrowq32026.so
+          cargo test --locked -p extensionlab-adapter-escrow
+      - name: Build the existing candidate fix
+        working-directory: research/fixcheck/escrow_patched
+        run: cargo build-sbf --tools-version v1.52 -- --locked --features fix-b
+      - name: Prove the exported regression fails before and passes after fix A
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+        run: bash scripts/check_regression_fix.sh

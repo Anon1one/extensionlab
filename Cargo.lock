@@ -1056,7 +1056,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
 name = "extensionlab-adapter-escrow"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "extensionlab-cli",
  "extensionlab-core",
@@ -1071,7 +1071,7 @@ dependencies = [
 
 [[package]]
 name = "extensionlab-adapter-program-examples-escrow"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "extensionlab-cli",
  "extensionlab-core",
@@ -1086,7 +1086,7 @@ dependencies = [
 
 [[package]]
 name = "extensionlab-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "clap",
  "extensionlab-core",
@@ -1095,14 +1095,16 @@ dependencies = [
 
 [[package]]
 name = "extensionlab-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "bincode",
  "litesvm",
  "serde",
  "serde_json",
  "solana-clock",
  "solana-instruction",
  "solana-keypair",
+ "solana-loader-v3-interface",
  "solana-message",
  "solana-pubkey 3.0.0",
  "solana-sha256-hasher",

@@ -15,10 +15,12 @@ delegates, required memos and transfer hooks. For each case you get:
 It runs locally on [LiteSVM](https://github.com/LiteSVM/litesvm), using the real SPL Token,
 Token-2022 and Associated Token Account programs that LiteSVM bundles.
 
-## Status (2026-10-22): runner and two targets working
+## Status (2026-10-22): alpha, two targets and a CI compatibility gate
 
 ExtensionLab runs cases against the escrow in `targets/escrow` and an unmodified, pinned
 Solana Foundation escrow example fetched into `targets/program-examples`.
+Reports can be compared between revisions to catch new failures and lost coverage. This is
+local compatibility testing, not a security audit or a claim of mainnet equivalence.
 
 | Part | State |
 |---|---|
@@ -71,7 +73,7 @@ Requirements:
 ### Host workspace (no Solana toolchain needed)
 
 ```sh
-cargo test --workspace      # 76 tests: core unit tests, mint factory tests, a program-free runner
+cargo test --workspace --locked # 91 tests: core unit tests, mint factory tests, a program-free runner
                             # test, the 19-test extension probe, CLI tests, and 10 escrow golden
                             # tests plus 4 third-party adapter tests (program runs skip until their .so is built)
 
@@ -93,8 +95,43 @@ Exit codes:
 | 0 | No failures |
 | 1 | At least one failing run |
 | 2 | Usage error |
-| 3 | Harness error |
+| 3 | Harness error, empty matrix or no applicable cases |
 | 4 | A baseline case failed (every slot on SPL Token without extensions) |
+
+An issuer action with no eligible accounts or tokens is **not applicable**, never a pass.
+Other steps still run, and actual failures take precedence over not-applicable status.
+
+### Compare revisions in CI
+
+```sh
+cargo run --locked -p extensionlab-cli -- report compare base/report.json head/report.json --out comparison
+```
+
+This writes `comparison.json` and `comparison.md`. Known failures remain visible; new failures,
+worsening balance mismatches, removed cases or expectations, and lost invariant coverage fail
+the gate. Case definitions and seeds must match. Token-runtime changes fail with exit 3 unless
+explicitly acknowledged with `--allow-runtime-change`; protocol ELF changes are expected.
+Use reports from trusted base/head builds using the same ExtensionLab version.
+
+The root `action.yml` packages this for GitHub Actions after the caller builds its adapter and
+target programs. It requires no API key or repository write permission:
+
+```yaml
+- uses: Anon1one/extensionlab@<reviewed-commit-sha>
+  with:
+    binary: target/debug/my-protocol-extensionlab
+    adapter: my-protocol
+    baseline-report: compatibility/base-report.json # optional, from the trusted base revision
+    out: extensionlab-report                       # must be a fresh directory
+```
+
+Without a baseline report, the action gates on all current failures. It adds evidence to the
+job summary; callers can upload the output directory with `actions/upload-artifact`.
+It does not fetch a baseline automatically.
+
+`run --token-2022-so <path> --token-2022-sha256 <hash>` uses an explicit runtime. Reports record
+the actual Token, Token-2022 and ATA ELF hashes and the seed. Generated regressions preserve
+the seed and check the Token-2022 hash; set `EXTENSIONLAB_TOKEN_2022_SO` when replaying a custom ELF.
 
 To run the escrow against a matrix (needs the escrow binary, see below):
 
@@ -103,13 +140,15 @@ cargo run -p extensionlab-adapter-escrow -- run --adapter escrow --matrix defaul
 ```
 
 This writes `extensionlab-report/report.json` and `report.md`. On the default matrix it gives 32 runs:
-10 pass, 4 rejected, 18 fail, 0 error (`--adapter escrow-existing-atas`: 9 pass, 4 rejected, 19 fail;
+9 pass, 4 rejected, 18 fail, 0 error, 1 not applicable (`--adapter escrow-existing-atas`: 8 pass,
+4 rejected, 19 fail, 0 error, 1 not applicable;
 the memo runs fail and the frozen-`mint_b` take passes). Both exit 1. Only SPL Token cases count as
 the baseline (both pass), so the refund failing on plain Token-2022 (F1) is an ordinary failure, not a
 broken baseline (PLAN.md, decision 1).
 
 `--matrix all` adds an undeployed transfer hook, a Pausable mint (with a pause between entry and
-exit) and CpiGuard on the actors' accounts: 48 runs, 12 pass, 8 rejected, 28 fail, 0 error, exit 1
+exit) and CpiGuard on the actors' accounts: 48 runs, 11 pass, 8 rejected, 28 fail, 0 error,
+1 not applicable, exit 1
 for `--adapter escrow`. CPI Guard on the maker's account makes `make` fail with error 42, so the
 deposit is refused; on the taker's account `take` fails the same way after the deposit. A pause
 blocks `take` with error 67; `refund` fails on F1 before it reaches the pause.
@@ -122,10 +161,10 @@ was fetched with its MIT license and built without changing program code. The ch
 1.2.1, which satisfies its declared `1.0.2` dependency). The report records the program ELF hash.
 These results were run locally on 22 October 2026 with the same LiteSVM/Token-2022 versions above:
 
-| Matrix | Pass | Rejected | Fail | Harness error |
-|---|---|---|---|---|
-| `default` (32 runs) | 19 | 4 | 9 | 0 |
-| `all` (48 runs) | 26 | 8 | 14 | 0 |
+| Matrix | Pass | Rejected | Fail | Harness error | Not applicable |
+|---|---|---|---|---|---|
+| `default` (32 runs) | 17 | 4 | 9 | 0 | 2 |
+| `all` (48 runs) | 24 | 8 | 14 | 0 | 2 |
 
 - SPL Token and plain Token-2022 both pass take and refund. The original target's F1 does not
   occur here: this example names the token program in its refund ATA constraints.
@@ -136,9 +175,8 @@ These results were run locally on 22 October 2026 with the same LiteSVM/Token-20
   refundability and closeability hold.
 - A permanent delegate can drain the real `mint_a` custody balance before either exit. The
   transfers succeed, but the invariants detect the shortfall.
-- The pass counts include two existing catalog cases where the delegate is on `mint_b`, which
-  has no custody account: their drain step is a no-op. This known runner/catalog gap is not
-  evidence of resistance to a drain (PLAN.md section 8).
+- The two not-applicable cases put the delegate on `mint_b`, which has no custody account.
+  Their drain action sends no transaction; they are not evidence of drain resistance.
 
 Reproduce with Solana `cargo-build-sbf` 3.1.10 and its platform-tools v1.52:
 
@@ -155,9 +193,14 @@ The fetch script refuses a different or modified existing checkout and supplies 
 lockfile. `EXTENSIONLAB_PROGRAM_EXAMPLES_ESCROW_SO` overrides the binary path. With
 `EXTENSIONLAB_REQUIRE_TARGET_BINARIES=1`, missing binaries fail the new adapter tests rather than
 skipping. The workflow's separate `program-examples` job builds this target, runs the matrix,
-exports an `--expect observed` regression and compiles/runs it. The GitHub-hosted job has not yet
-been run; its build, matrix, tests and regression export were verified locally. The default
+exports an `--expect observed` regression and compiles/runs it. The GitHub-hosted job is not yet
+verified; its build, matrix, tests, regression export and action were verified locally. The default
 pass-required export also compiles and fails on the observed incompatibility.
+
+The separate `exported-regression` job builds the original escrow and the existing candidate
+fix, then runs `bash scripts/check_regression_fix.sh`. The exported plain Token-2022 refund test
+was verified locally to fail on the original program and pass after fix A. This does not claim
+that fix B resolves the nominal fee-shortfall expectations.
 
 ### Escrow reproduction
 
@@ -227,10 +270,10 @@ From [PLAN.md](PLAN.md). Item 1 (runner, escrow adapter, golden test) is done.
    scenario uses it yet.
 3. Done locally (22 Oct): the default and `all` matrices were run against the pinned
    `solana-foundation/program-examples` escrow; actual results are above. The source is unchanged.
-   Publication/outreach remains the author's choice.
+   External maintainer feedback and adoption remain unverified.
 4. Build transfer-hook test programs (allow, deny, extra account) and add the hook scenarios.
-5. Add a CI workflow example, an adapter-author guide, and a pinned, hashed Token-2022 binary option
-   so that results can be compared with production.
+5. Done: reusable CI action, report comparisons, and pinned, hashed Token-2022 binary support.
+   Next: adapter scaffolding, a non-escrow target and a safe implementation as a negative control.
 
 ## Caveats
 

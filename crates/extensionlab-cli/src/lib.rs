@@ -21,6 +21,7 @@
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use extensionlab_core::{
     adapter::Adapter,
+    comparison,
     matrix::{self, PRESET_NAMES},
     regression,
     report::{self, FailOn, Report, EXIT_HARNESS, EXIT_OK},
@@ -143,6 +144,12 @@ pub struct RunArgs {
     /// Seed for deterministic keypairs.
     #[arg(long, default_value_t = 0)]
     pub seed: u64,
+    /// Local Token-2022 ELF to load instead of LiteSVM's bundled binary.
+    #[arg(long)]
+    pub token_2022_so: Option<PathBuf>,
+    /// Expected SHA-256 of --token-2022-so (checked before any execution).
+    #[arg(long, requires = "token_2022_so")]
+    pub token_2022_sha256: Option<String>,
     /// Print the planned cases and exit without running them.
     #[arg(long)]
     pub plan: bool,
@@ -163,6 +170,22 @@ pub enum MatrixCommand {
 /// `report` subcommands.
 #[derive(Debug, Subcommand)]
 pub enum ReportCommand {
+    /// Compare two reports; fail on new failures or lost coverage.
+    Compare {
+        /// Report from the trusted base revision.
+        before: PathBuf,
+        /// Report from the proposed revision.
+        after: PathBuf,
+        /// Directory for comparison.json and comparison.md (also prints Markdown).
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Which statuses count as a compatibility failure.
+        #[arg(long, value_enum, default_value_t = FailOnArg::Fail)]
+        fail_on: FailOnArg,
+        /// Intentionally compare different Token/ATA runtimes.
+        #[arg(long)]
+        allow_runtime_change: bool,
+    },
     /// Render a JSON report as Markdown on stdout.
     Render {
         /// Path to report.json.
@@ -260,6 +283,37 @@ pub fn main_with(registry: Registry) -> ExitCode {
             },
         },
         Command::Report { command } => match command {
+            ReportCommand::Compare {
+                before,
+                after,
+                out,
+                fail_on,
+                allow_runtime_change,
+            } => {
+                let result = (|| -> Result<_, Error> {
+                    let comparison = comparison::compare(
+                        &read_report(&before)?,
+                        &read_report(&after)?,
+                        fail_on.into(),
+                        allow_runtime_change,
+                    )?;
+                    let markdown = comparison::render_markdown(&comparison);
+                    if let Some(out) = out {
+                        std::fs::create_dir_all(&out)?;
+                        std::fs::write(
+                            out.join("comparison.json"),
+                            serde_json::to_string_pretty(&comparison)?,
+                        )?;
+                        std::fs::write(out.join("comparison.md"), &markdown)?;
+                    }
+                    print!("{markdown}");
+                    Ok(comparison.exit_code)
+                })();
+                match result {
+                    Ok(code) => ExitCode::from(code),
+                    Err(e) => harness_error(e),
+                }
+            }
             ReportCommand::Render { path } => match read_report(&path) {
                 Ok(r) => {
                     print!("{}", report::render_markdown(&r));
@@ -326,10 +380,16 @@ fn run(registry: &Registry, args: RunArgs) -> ExitCode {
         Err(e) => return harness_error(e),
     };
     let mut adapter = (entry.make)();
-    let runner = Runner::new(extensionlab_core::runner::RunnerOptions {
+    let mut runner = Runner::new(extensionlab_core::runner::RunnerOptions {
         seed: args.seed,
         ..Default::default()
     });
+    if let Some(path) = &args.token_2022_so {
+        runner = match runner.with_token_2022_binary(path, args.token_2022_sha256.as_deref()) {
+            Ok(runner) => runner,
+            Err(error) => return harness_error(error),
+        };
+    }
     if args.plan {
         return match runner.plan(adapter.as_ref(), &matrix) {
             Ok(cases) => {
@@ -351,8 +411,8 @@ fn run(registry: &Registry, args: RunArgs) -> ExitCode {
     }
     let s = report.summary;
     eprintln!(
-        "{} runs: {} pass, {} rejected, {} fail, {} error",
-        s.total, s.pass, s.rejected, s.fail, s.error
+        "{} runs: {} pass, {} rejected, {} fail, {} error, {} not applicable",
+        s.total, s.pass, s.rejected, s.fail, s.error, s.not_applicable
     );
     let code = report.exit_code(args.fail_on.into());
     if code == report::EXIT_BASELINE {

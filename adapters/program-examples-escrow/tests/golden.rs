@@ -63,11 +63,22 @@ fn default_matrix_confirms_both_fee_blocked_exits() {
         .run(&mut adapter, &matrix::preset("default").unwrap())
         .unwrap();
     assert_eq!(report.summary.total, 32);
-    assert_eq!(report.summary.pass, 19);
+    assert_eq!(report.summary.pass, 17);
+    assert_eq!(report.summary.not_applicable, 2);
     assert_eq!(report.summary.rejected, 4);
     assert_eq!(report.summary.fail, 9);
     assert_eq!(report.summary.error, 0);
     assert_eq!(report.exit_code(FailOn::Fail), 1);
+    for exit in ["take_offer", "refund_offer"] {
+        let run = report
+            .run(&format!(
+                "permanent_delegate@mint_b/make_offer_drain_{exit}"
+            ))
+            .unwrap();
+        assert_eq!(run.status, RunStatus::NotApplicable);
+        assert_eq!(run.steps[1].outcome, StepOutcome::NotApplicable);
+        assert!(run.steps[1].transactions.is_empty());
+    }
     for run in &report.runs {
         assert!(
             run.harness_error.is_none(),

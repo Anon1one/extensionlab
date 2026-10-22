@@ -40,6 +40,7 @@ use spl_token_2022_interface::{
     instruction::{freeze_account, thaw_account, transfer_checked},
 };
 use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 /// Lamports airdropped to the issuer, which pays for mints and every account
 /// the harness creates.
@@ -70,12 +71,78 @@ pub struct RunnerOptions {
 pub struct Runner {
     /// Settings.
     pub options: RunnerOptions,
+    token_2022: Option<TokenBinary>,
+}
+
+#[derive(Debug, Clone)]
+struct TokenBinary {
+    bytes: Vec<u8>,
+    source: String,
 }
 
 impl Runner {
     /// Runner with explicit options.
     pub fn new(options: RunnerOptions) -> Self {
-        Self { options }
+        Self {
+            options,
+            token_2022: None,
+        }
+    }
+
+    /// Use a local Token-2022 ELF. The optional expected hash is checked before
+    /// any case runs. Bytes are captured once, so replacing the file cannot
+    /// change the runtime halfway through a matrix.
+    pub fn with_token_2022_binary(
+        mut self,
+        path: impl AsRef<Path>,
+        expected_sha256: Option<&str>,
+    ) -> Result<Self> {
+        let bytes = std::fs::read(path.as_ref())?;
+        if !bytes.starts_with(b"\x7fELF") {
+            return Err(Error::Adapter(
+                "Token-2022 binary is not an ELF file".into(),
+            ));
+        }
+        let hash = elf_sha256(&bytes);
+        if let Some(expected) = expected_sha256 {
+            if expected.len() != 64
+                || !expected.bytes().all(|b| b.is_ascii_hexdigit())
+                || !hash.eq_ignore_ascii_case(expected)
+            {
+                return Err(Error::Adapter(format!(
+                    "Token-2022 SHA-256 mismatch: expected {expected}, got {hash}"
+                )));
+            }
+        }
+        self.token_2022 = Some(TokenBinary {
+            bytes,
+            source: path.as_ref().display().to_string(),
+        });
+        Ok(self)
+    }
+
+    fn load_token_runtime(&self, svm: &mut LiteSVM) -> Result<()> {
+        if let Some(binary) = &self.token_2022 {
+            svm.add_program(spl_token_2022_interface::id(), &binary.bytes)
+                .map_err(|e| Error::Adapter(format!("loading Token-2022 ELF: {e}")))?;
+        }
+        Ok(())
+    }
+
+    /// Fingerprints of the token programs this runner and adapter will load.
+    pub fn runtime_programs(&self, adapter: &dyn Adapter) -> Result<Vec<ProgramInfo>> {
+        let mut svm = LiteSVM::new();
+        adapter.load_programs(&mut svm)?;
+        self.load_token_runtime(&mut svm)?;
+        let mut programs = token_programs(&svm)?;
+        if let Some(binary) = &self.token_2022 {
+            programs
+                .iter_mut()
+                .find(|p| p.name == "spl_token_2022")
+                .unwrap()
+                .source = binary.source.clone();
+        }
+        Ok(programs)
     }
 
     /// Expand `matrix` against the adapter's slots and scenarios.
@@ -91,11 +158,15 @@ impl Runner {
         for case in &cases {
             runs.push(self.run_case(adapter, case)?);
         }
-        let mut programs = bundled_token_programs();
+        // Missing protocol binaries still produce a useful harness-error report.
+        let mut programs = self
+            .runtime_programs(adapter)
+            .unwrap_or_else(|_| bundled_token_programs());
         programs.extend(adapter.programs());
         Ok(Report::new(
             Environment {
                 litesvm: LITESVM_VERSION.into(),
+                seed: self.options.seed,
                 programs,
             },
             AdapterInfo {
@@ -173,6 +244,7 @@ impl Runner {
         // 1-2. VM, programs, issuer.
         let mut svm = LiteSVM::new();
         adapter.load_programs(&mut svm)?;
+        self.load_token_runtime(&mut svm)?;
         let issuer = key("issuer");
         let issuer_pk = issuer.pubkey();
         airdrop(&mut svm, &issuer_pk, ISSUER_LAMPORTS)?;
@@ -278,6 +350,9 @@ impl Runner {
         // not change the epoch, and an epoch step moves no tokens.
         let mut fees = vec![fee_rates(&world)?];
         let mut credit_checks = Vec::new();
+        // Capture expectations before each flow executes. Reading the final
+        // world would apply a later issuer fee or epoch to an earlier flow.
+        let mut flow_expectations = BTreeMap::new();
         let mut flows_succeeded = 0usize;
         let mut stopped = false;
         for (index, step) in case.scenario.steps.iter().enumerate() {
@@ -298,6 +373,7 @@ impl Runner {
                         )));
                     }
                     let credits = adapter.credits(&world)?;
+                    flow_expectations.insert(index, adapter.expected_deltas(name, &world)?);
                     let txs = adapter.build_flow(name, &world)?;
                     (
                         txs.into_iter().map(PendingTx::Flow).collect::<Vec<_>>(),
@@ -326,7 +402,11 @@ impl Runner {
             let mut record = StepRecord {
                 index,
                 step: step.clone(),
-                outcome: StepOutcome::Succeeded,
+                outcome: if pending.is_empty() && matches!(step, Step::Issuer { .. }) {
+                    StepOutcome::NotApplicable
+                } else {
+                    StepOutcome::Succeeded
+                },
                 transactions: Vec::new(),
             };
             for pending_tx in pending {
@@ -358,7 +438,7 @@ impl Runner {
                 }
             }
             let succeeded = record.outcome == StepOutcome::Succeeded;
-            stopped = !succeeded;
+            stopped = record.outcome == StepOutcome::Failed;
             run.steps.push(record);
             let after = snapshot(&world, &tracked)?;
             if let (Some(before), true) = (credits_before, succeeded) {
@@ -389,16 +469,16 @@ impl Runner {
         let mut expected: Vec<ExpectedDelta> = Vec::new();
         let mut declared: BTreeSet<String> = BTreeSet::new();
         let mut committed = false;
-        for (step, record) in case.scenario.steps.iter().zip(&run.steps) {
+        for (index, (step, record)) in case.scenario.steps.iter().zip(&run.steps).enumerate() {
             let step_committed = record.transactions.iter().any(|t| t.error.is_none());
             let counts = match record.outcome {
                 StepOutcome::Succeeded => true,
                 StepOutcome::Failed => committed || step_committed,
-                StepOutcome::Skipped => false,
+                StepOutcome::Skipped | StepOutcome::NotApplicable => false,
             };
             committed |= step_committed;
-            if let Step::Flow { name } = step {
-                let deltas = adapter.expected_deltas(name, &world)?;
+            if let Step::Flow { .. } = step {
+                let deltas = flow_expectations.remove(&index).unwrap_or_default();
                 declared.extend(deltas.iter().map(|d| d.label.clone()));
                 if counts {
                     expected.extend(deltas);
@@ -630,7 +710,7 @@ fn sign_flow_tx(world: &World, tx: &FlowTx) -> Result<Transaction> {
 
 /// Instructions for an issuer action, one inner vector per transaction.
 /// Accounts that do not exist (or hold nothing to move) are left out; an
-/// action with nothing to do produces no transaction and succeeds.
+/// action with nothing to do produces no transaction and is not applicable.
 fn issuer_instructions(
     world: &World,
     tracked: &[TrackedAccount],
@@ -927,7 +1007,7 @@ fn refundability_checks(
             let fee_in = fee_at(i + 1, deposited);
             let allowed = fee_in.saturating_add(fee_at(exit_k, deposited.saturating_sub(fee_in)));
             let mut c = match steps[j].outcome {
-                StepOutcome::Skipped => check(
+                StepOutcome::Skipped | StepOutcome::NotApplicable => check(
                     InvariantKind::Refundability,
                     None,
                     CheckStatus::Skipped,
@@ -985,7 +1065,51 @@ fn support_policy(adapter: &dyn Adapter, case: &Case) -> SupportPolicy {
 /// The token programs LiteSVM 0.10.0 loads by default, for the report's
 /// environment section.
 pub fn bundled_token_programs() -> Vec<ProgramInfo> {
-    vec![
+    token_programs(&LiteSVM::new()).expect("LiteSVM bundles valid token ELFs")
+}
+
+/// Read the ELF from a legacy or upgradeable program account, excluding loader
+/// metadata. This fingerprints the bytes actually installed in the VM.
+pub fn program_bytes(svm: &LiteSVM, id: &Pubkey) -> Result<Vec<u8>> {
+    use solana_loader_v3_interface::state::UpgradeableLoaderState;
+    let invalid = || Error::Adapter(format!("program {id} has no readable ELF"));
+    let account = svm.get_account(id).ok_or_else(invalid)?;
+    let bytes =
+        if account.owner == Pubkey::from_str_const("BPFLoaderUpgradeab1e11111111111111111111111") {
+            let state: UpgradeableLoaderState =
+                bincode::deserialize(&account.data).map_err(|_| invalid())?;
+            let UpgradeableLoaderState::Program {
+                programdata_address,
+            } = state
+            else {
+                return Err(invalid());
+            };
+            let data = svm
+                .get_account(&Pubkey::new_from_array(programdata_address.to_bytes()))
+                .ok_or_else(invalid)?;
+            data.data
+                .get(UpgradeableLoaderState::size_of_programdata_metadata()..)
+                .ok_or_else(invalid)?
+                .to_vec()
+        } else {
+            account.data
+        };
+    if !bytes.starts_with(b"\x7fELF") {
+        return Err(invalid());
+    }
+    Ok(bytes)
+}
+
+fn elf_sha256(bytes: &[u8]) -> String {
+    solana_sha256_hasher::hash(bytes)
+        .to_bytes()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+fn token_programs(svm: &LiteSVM) -> Result<Vec<ProgramInfo>> {
+    let mut programs = vec![
         ProgramInfo {
             name: "spl_token".into(),
             program_id: spl_token_2022_interface::inline_spl_token::id(),
@@ -1004,5 +1128,9 @@ pub fn bundled_token_programs() -> Vec<ProgramInfo> {
             source: "bundled with litesvm 0.10.0 (spl_associated_token_account-1.1.1.so)".into(),
             sha256: None,
         },
-    ]
+    ];
+    for program in &mut programs {
+        program.sha256 = Some(elf_sha256(&program_bytes(svm, &program.program_id)?));
+    }
+    Ok(programs)
 }

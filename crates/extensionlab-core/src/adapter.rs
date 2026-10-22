@@ -295,8 +295,9 @@ pub trait Adapter {
     /// (PDAs, ATAs) even if the accounts do not exist yet.
     fn tracked_accounts(&self, world: &World) -> Result<Vec<TrackedAccount>>;
 
-    /// Nominal balance changes of flow `flow`. Accounts not listed are not
-    /// compared.
+    /// Balance changes of flow `flow`, evaluated immediately before building
+    /// that flow's transactions. The world contains the state and active fee
+    /// at that point. Accounts not listed are not compared.
     fn expected_deltas(&self, flow: &str, world: &World) -> Result<Vec<ExpectedDelta>>;
 
     /// Amounts the protocol's state says it holds, read from program

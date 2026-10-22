@@ -337,7 +337,8 @@ impl Adapter for EscrowAdapter {
                         data,
                         vec![
                             AccountMeta::new(k.taker, true),
-                            AccountMeta::new_readonly(k.mint_a, false),
+                            // Candidate fee-harvest fixes update the mint.
+                            AccountMeta::new(k.mint_a, false),
                             AccountMeta::new_readonly(k.mint_b, false),
                             AccountMeta::new(k.taker_ata_b, false),
                             AccountMeta::new(k.taker_ata_a, false),
@@ -358,7 +359,7 @@ impl Adapter for EscrowAdapter {
                     vec![2u8],
                     vec![
                         AccountMeta::new(k.maker, true),
-                        AccountMeta::new_readonly(k.mint_a, false),
+                        AccountMeta::new(k.mint_a, false),
                         AccountMeta::new(k.maker_ata_a, false),
                         AccountMeta::new(k.escrow, false),
                         AccountMeta::new(k.vault, false),

@@ -263,17 +263,18 @@ Out of the weekend cut: hooks, a third-party target, CI.
 
 Status (2026-10-22): tasks 1 (runner), 2 (escrow adapter), 3 (golden test), 4 (baseline gate,
 SPL Token only), 5 (issuer steps, Pausable, CpiGuard), 6 (probe port), and 7 (third-party target) are done.
-Task 9 (hook programs) is next; task 10 (runtime binary pinning) remains open. Known gaps
+Task 9 (hook programs) remains open; task 10 (runtime binary pinning) is done. Known gaps
 found in review and not fixed yet:
 
-- A drain scenario whose permanent-delegate slot has no custody account (for the escrow,
-  `permanent_delegate@mint_b/make_drain_*`) drains nothing and reports `pass`; the drain step
-  succeeds with no transaction.
+- Fixed (22 Oct): issuer actions with no eligible accounts or tokens are `not_applicable`.
+  They no longer count as passes; real compatibility failures still take precedence.
 - The escrow's `update` flow is not in any default scenario (it is neither entry nor exit).
 - A step interrupted by a harness error is listed as `skipped`; `harness_error` explains it.
-- `Adapter::expected_deltas` is called after the run, so an adapter that reads the fee from the
-  world sees the fee at the final epoch, not the one in effect when the flow ran. Refundability
-  does use the fee in effect at each transfer.
+- Fixed (22 Oct): `Adapter::expected_deltas` is captured immediately before each flow.
+  Host tests verify expectations across a fee change and a two-epoch advance.
+- Added (22 Oct): `report compare`, a reusable root GitHub Action, and a locally verified
+  generated refund regression that fails on the original escrow and passes with fix A.
+  Hosted CI execution and external adoption are still unverified.
 
 1. **Runner.** Implement `Runner::run_case` in `crates/extensionlab-core/src/runner.rs`, using
    `mint.rs`, `invariants.rs`, `report.rs` and `diagnosis.rs`. Derive keypairs from
@@ -314,8 +315,9 @@ found in review and not fixed yet:
 7. **Third-party target.** Done locally (2026-10-22): `scripts/fetch_targets.sh` pins the full
    `de090195e4de698e150572c4f886c333323a64a5` revision, retains the upstream MIT license, and
    copies a checked-in dependency lockfile. The adapter is 268 non-blank/non-comment lines;
-   program source is unchanged. `default`: 19 pass / 4 rejected / 9 fail / 0 error; `all`:
-   26 / 8 / 14 / 0. Both exits hit TF-02 (35), while plain Token-2022 passes. Four new tests
+   program source is unchanged. After the not-applicable fix, `default`: 17 pass / 4 rejected /
+   9 fail / 0 error / 2 not applicable; `all`: 24 / 8 / 14 / 0 / 2. Both exits hit TF-02 (35),
+   while plain Token-2022 passes. Four new tests
    cover these results and recovery. The actual results are in README.md instead of a separate
    write-up. Generated `--expect observed` and pass-required regressions both compile: the
    former passes and the latter fails on the known incompatibility. The CI workflow now has
@@ -334,6 +336,9 @@ found in review and not fixed yet:
     LiteSVM bundles, and record its sha256 in every report (`runner.rs`,
     `bundled_token_programs`). This answers research/04 open question 2 and the research/02
     version caveat.
+    Done (22 Oct): `--token-2022-so` and `--token-2022-sha256`, hashes of the loaded token-program
+    ELFs, seed recording, and runtime checks in generated regressions. Mainnet parity remains
+    unverified.
 
 ### Decisions for the author
 
@@ -344,9 +349,9 @@ found in review and not fixed yet:
 2. **Fee-explained mismatches.** Should a balance that differs exactly by the configured fee get a
    softer status, or must adapters write fee-aware expectations? Recommendation: keep `fail` and
    ship a helper for fee-aware expectations, so the default shows the shortfall.
-3. **License**: decided 2026-10-22, MIT OR Apache-2.0; the repository stays private for now.
-   Still open: whether the research write-ups (written by agents) ship as they are when it is made
-   public.
+3. **License**: decided 2026-10-22, MIT OR Apache-2.0. The author explicitly requested that
+   ExtensionLab be made public on 22 Oct. Historical research retains its evidence labels
+   and limitations; it is not a security audit.
 
 ## 9. Risks and what would make this direction wrong
 

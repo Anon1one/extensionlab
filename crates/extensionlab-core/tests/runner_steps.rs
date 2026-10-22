@@ -12,8 +12,8 @@ use extensionlab_core::{
     },
     invariants::{CheckStatus, InvariantKind},
     matrix::{IssuerAction, Matrix, Scenario, SlotStrategy, Step},
-    mint::{read_token_account, MintConfig, MintExtension},
-    report::{Report, RunResult, RunStatus},
+    mint::{epoch_transfer_fee, fee_for, read_token_account, MintConfig, MintExtension},
+    report::{Report, RunResult, RunStatus, StepOutcome},
     runner::{Runner, RunnerOptions},
     Result,
 };
@@ -25,9 +25,19 @@ const DEPOSIT: u64 = 100_000;
 
 struct Vault {
     scenarios: Vec<Scenario>,
+    fee_aware: bool,
+    custody: bool,
 }
 
 impl Vault {
+    fn new(scenarios: Vec<Scenario>) -> Self {
+        Self {
+            scenarios,
+            fee_aware: false,
+            custody: true,
+        }
+    }
+
     fn transfer(&self, w: &World, from: &str, to: &str, amount: u64) -> Result<FlowTx> {
         let m = w.mint(SLOT)?;
         let ix = transfer_checked(
@@ -124,13 +134,40 @@ impl Adapter for Vault {
                 label: "vault".into(),
                 address: w.ata("vault", SLOT)?,
                 slot: SLOT.into(),
-                custody: true,
+                custody: self.custody,
             },
         ])
     }
 
-    fn expected_deltas(&self, _flow: &str, _w: &World) -> Result<Vec<ExpectedDelta>> {
-        Ok(Vec::new())
+    fn expected_deltas(&self, flow: &str, w: &World) -> Result<Vec<ExpectedDelta>> {
+        if !self.fee_aware {
+            return Ok(Vec::new());
+        }
+        let (from, to, amount) = if flow == "deposit" {
+            ("alice", "vault", DEPOSIT)
+        } else {
+            let held = read_token_account(&w.svm, &w.ata("vault", SLOT)?)?
+                .unwrap()
+                .amount;
+            assert!(
+                held > 0,
+                "a skipped exit must not have its expectations evaluated"
+            );
+            ("vault", "alice", held)
+        };
+        let fee = epoch_transfer_fee(&w.svm, &w.mint(SLOT)?.address)?
+            .map(|(bps, max)| fee_for(bps, max, amount))
+            .unwrap_or(0);
+        Ok(vec![
+            ExpectedDelta {
+                label: from.into(),
+                delta: -(amount as i128),
+            },
+            ExpectedDelta {
+                label: to.into(),
+                delta: (amount - fee) as i128,
+            },
+        ])
     }
 }
 
@@ -214,7 +251,7 @@ fn run() -> Report {
         keep_success_logs: false,
     });
     runner
-        .run(&mut Vault { scenarios }, &matrix)
+        .run(&mut Vault::new(scenarios), &matrix)
         .expect("runner")
 }
 
@@ -298,9 +335,15 @@ fn issuer_and_epoch_steps() {
         bad.harness_error
     );
 
-    // Pause on a mint without Pausable sends nothing and succeeds.
+    // No transaction means the issuer action was not exercised.
     let noop = find(&report, "fee_200bps/pause_without_pausable");
-    assert_eq!(noop.status, RunStatus::Pass, "{:#?}", noop.invariants);
+    assert_eq!(
+        noop.status,
+        RunStatus::NotApplicable,
+        "{:#?}",
+        noop.invariants
+    );
+    assert_eq!(noop.steps[1].outcome, StepOutcome::NotApplicable);
     assert!(noop.steps[1].transactions.is_empty());
 
     // While paused the withdrawal fails and the deposit is stuck.
@@ -324,7 +367,12 @@ fn issuer_and_epoch_steps() {
     // PauseAll needs no slot: it pauses every Pausable mint and sends nothing
     // when there is none.
     let noop = find(&report, "fee_200bps/pause_all_without_pausable");
-    assert_eq!(noop.status, RunStatus::Pass, "{:#?}", noop.invariants);
+    assert_eq!(
+        noop.status,
+        RunStatus::NotApplicable,
+        "{:#?}",
+        noop.invariants
+    );
     assert!(noop.steps[1].transactions.is_empty());
     let all = find(&report, "pausable/pause_all");
     assert_eq!(all.steps[1].step.describe(), "issuer:pause_all");
@@ -332,4 +380,161 @@ fn issuer_and_epoch_steps() {
     assert_eq!(all.status, RunStatus::Fail);
     assert_eq!(refundability(all).0, CheckStatus::Violated);
     assert_eq!(rule(all), Some("pausable.paused_mint"));
+}
+
+#[test]
+fn fee_expectations_use_each_flows_execution_state() {
+    let mut vault = Vault::new(vec![scenario(
+        "fee_change",
+        "transfer_fee",
+        vec![set_fee(1_000), Step::AdvanceEpoch { epochs: 2 }],
+    )]);
+    vault.fee_aware = true;
+    let matrix = Matrix {
+        name: "fee_change".into(),
+        description: String::new(),
+        strategy: SlotStrategy::AllSlots,
+        configs: vec![
+            MintConfig::token_2022("fee", 6).with(MintExtension::TransferFee {
+                basis_points: 200,
+                maximum_fee: u64::MAX,
+            }),
+        ],
+    };
+    let report = Runner::default().run(&mut vault, &matrix).unwrap();
+    let run = &report.runs[0];
+    assert_eq!(run.status, RunStatus::Pass, "{run:#?}");
+    let alice = run.balances.iter().find(|b| b.label == "alice").unwrap();
+    assert_eq!(alice.actual_after, 88_200);
+    assert_eq!(alice.expected_after, Some(88_200));
+}
+
+#[test]
+fn skipped_flows_do_not_read_expectations_from_an_unreached_state() {
+    let mut vault = Vault::new(vec![scenario(
+        "deposit_withdraw",
+        "non_transferable",
+        vec![],
+    )]);
+    vault.fee_aware = true;
+    let matrix = Matrix {
+        name: "non_transferable".into(),
+        description: String::new(),
+        strategy: SlotStrategy::AllSlots,
+        configs: vec![
+            MintConfig::token_2022("non_transferable", 6).with(MintExtension::NonTransferable)
+        ],
+    };
+    let run = Runner::default()
+        .run(&mut vault, &matrix)
+        .unwrap()
+        .runs
+        .remove(0);
+    assert_eq!(run.status, RunStatus::Rejected, "{run:#?}");
+    assert_eq!(run.steps[1].outcome, StepOutcome::Skipped);
+    assert!(run.harness_error.is_none());
+}
+
+#[test]
+fn a_drain_without_eligible_custody_is_not_a_pass() {
+    let scenarios = vec![scenario(
+        "drain",
+        "permanent_delegate",
+        vec![issuer(IssuerAction::DrainCustody)],
+    )];
+    let matrix = Matrix {
+        name: "delegate".into(),
+        description: String::new(),
+        strategy: SlotStrategy::AllSlots,
+        configs: vec![MintConfig::token_2022("delegate", 6).with(MintExtension::PermanentDelegate)],
+    };
+    let mut vault = Vault::new(scenarios);
+    vault.custody = false;
+    let report = Runner::default().run(&mut vault, &matrix).unwrap();
+    let run = &report.runs[0];
+    assert_eq!(run.status, RunStatus::NotApplicable, "{run:#?}");
+    assert_eq!(report.summary.pass, 0);
+    assert_eq!(report.summary.not_applicable, 1);
+    assert_eq!(run.steps[1].outcome, StepOutcome::NotApplicable);
+    assert!(run.steps[1].transactions.is_empty());
+    assert_eq!(run.steps[2].outcome, StepOutcome::Succeeded);
+    let markdown = extensionlab_core::report::render_markdown(&report);
+    assert!(markdown.contains("no eligible accounts or tokens"));
+
+    vault.custody = true;
+    let run = Runner::default()
+        .run(&mut vault, &matrix)
+        .unwrap()
+        .runs
+        .remove(0);
+    assert_eq!(run.steps[1].outcome, StepOutcome::Succeeded);
+    assert_eq!(run.steps[1].transactions.len(), 1);
+    assert_eq!(run.status, RunStatus::Fail, "{run:#?}");
+}
+
+#[test]
+fn a_pinned_runtime_uses_and_reports_the_captured_elf_bytes() {
+    use extensionlab_core::runner::{bundled_token_programs, program_bytes};
+    let bytes = program_bytes(&LiteSVM::new(), &spl_token_2022_interface::id()).unwrap();
+    let hash = bundled_token_programs()
+        .into_iter()
+        .find(|p| p.name == "spl_token_2022")
+        .unwrap()
+        .sha256
+        .unwrap();
+    let directory = std::env::temp_dir().join(format!(
+        "extensionlab-runtime-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    ));
+    std::fs::create_dir(&directory).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(directory.clone());
+    let path = directory.join("token.so");
+    std::fs::write(&path, &bytes).unwrap();
+    assert!(Runner::default()
+        .with_token_2022_binary(&path, Some(&"0".repeat(64)))
+        .is_err());
+    let pinned = Runner::default()
+        .with_token_2022_binary(&path, Some(&hash))
+        .unwrap();
+    // Mutating the source file cannot change an already configured runner.
+    std::fs::write(&path, b"not an ELF").unwrap();
+    assert!(Runner::default()
+        .with_token_2022_binary(&path, None)
+        .is_err());
+    let mut vault = Vault::new(vec![Scenario {
+        name: "deposit_withdraw".into(),
+        steps: vec![Step::flow("deposit"), Step::flow("withdraw")],
+        requires_extension: None,
+    }]);
+    let matrix = Matrix {
+        name: "runtime".into(),
+        description: String::new(),
+        strategy: SlotStrategy::AllSlots,
+        configs: vec![MintConfig::token_2022("plain", 6)],
+    };
+    let report = pinned.run(&mut vault, &matrix).unwrap();
+    assert_eq!(report.runs[0].status, RunStatus::Pass, "{report:#?}");
+    let token = report
+        .environment
+        .programs
+        .iter()
+        .find(|p| p.name == "spl_token_2022")
+        .unwrap();
+    assert_eq!(token.sha256.as_deref(), Some(hash.as_str()));
+    assert_eq!(token.source, path.display().to_string());
+    assert!(report
+        .environment
+        .programs
+        .iter()
+        .all(|p| p.sha256.as_ref().is_some_and(|h| h.len() == 64)));
 }

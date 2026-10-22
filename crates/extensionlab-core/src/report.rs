@@ -21,7 +21,7 @@ use std::fmt::Write as _;
 
 /// Version of the JSON report schema. Bump the minor version for additive
 /// changes and the major version for breaking ones.
-pub const SCHEMA_VERSION: &str = "0.1.0";
+pub const SCHEMA_VERSION: &str = "0.2.0";
 
 /// A full report: one adapter, one matrix, every run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,6 +56,9 @@ pub struct ToolInfo {
 pub struct Environment {
     /// LiteSVM version.
     pub litesvm: String,
+    /// Keypair seed used for this report (older reports used seed zero).
+    #[serde(default)]
+    pub seed: u64,
     /// Every program loaded into the VM that matters for the result: token
     /// programs and the programs under test.
     pub programs: Vec<ProgramInfo>,
@@ -111,6 +114,9 @@ pub struct Summary {
     pub fail: usize,
     /// [`RunStatus::Error`].
     pub error: usize,
+    /// Cases whose issuer action had no eligible accounts or tokens.
+    #[serde(default)]
+    pub not_applicable: usize,
 }
 
 impl Summary {
@@ -126,6 +132,7 @@ impl Summary {
                 RunStatus::Rejected => s.rejected += 1,
                 RunStatus::Fail => s.fail += 1,
                 RunStatus::Error => s.error += 1,
+                RunStatus::NotApplicable => s.not_applicable += 1,
             }
         }
         s
@@ -147,6 +154,9 @@ pub enum RunStatus {
     Fail,
     /// The harness failed; the run says nothing about the protocol.
     Error,
+    /// No failure was observed, but an issuer action had nothing to exercise.
+    /// This is not evidence that the program resisted that action.
+    NotApplicable,
 }
 
 /// Result of one case.
@@ -207,6 +217,8 @@ pub enum StepOutcome {
     Failed,
     /// Not run because an earlier step failed.
     Skipped,
+    /// An issuer action had no eligible accounts or tokens; no transaction ran.
+    NotApplicable,
 }
 
 /// Record of one scenario step.
@@ -316,6 +328,12 @@ pub fn classify(
     }
     match policy {
         SupportPolicy::MustReject => RunStatus::Fail,
+        _ if steps
+            .iter()
+            .any(|s| s.outcome == StepOutcome::NotApplicable) =>
+        {
+            RunStatus::NotApplicable
+        }
         _ => RunStatus::Pass,
     }
 }
@@ -387,6 +405,14 @@ impl Report {
         if self.runs.iter().any(|r| r.status == RunStatus::Error) {
             return EXIT_HARNESS;
         }
+        if self.runs.is_empty()
+            || self
+                .runs
+                .iter()
+                .all(|r| r.status == RunStatus::NotApplicable)
+        {
+            return EXIT_HARNESS;
+        }
         let failing = |r: &&RunResult| match fail_on {
             FailOn::Fail => r.status == RunStatus::Fail,
             FailOn::Rejected => matches!(r.status, RunStatus::Fail | RunStatus::Rejected),
@@ -431,6 +457,7 @@ fn status_str(s: RunStatus) -> &'static str {
         RunStatus::Rejected => "rejected",
         RunStatus::Fail => "FAIL",
         RunStatus::Error => "error",
+        RunStatus::NotApplicable => "not applicable",
     }
 }
 
@@ -512,12 +539,12 @@ pub fn render_markdown(r: &Report) -> String {
     let s = &r.summary;
     let _ = writeln!(
         o,
-        "| Total | Pass | Rejected | Fail | Error |\n|---|---|---|---|---|"
+        "| Total | Pass | Rejected | Fail | Error | Not applicable |\n|---|---|---|---|---|---|"
     );
     let _ = writeln!(
         o,
-        "| {} | {} | {} | {} | {} |\n",
-        s.total, s.pass, s.rejected, s.fail, s.error
+        "| {} | {} | {} | {} | {} | {} |\n",
+        s.total, s.pass, s.rejected, s.fail, s.error, s.not_applicable
     );
     let _ = writeln!(o, "{}\n", baseline_note(r));
 
@@ -543,7 +570,14 @@ pub fn render_markdown(r: &Report) -> String {
             .diagnosis
             .as_ref()
             .map(|d| d.assumption.clone())
-            .unwrap_or_default();
+            .unwrap_or_else(|| {
+                run.steps
+                    .iter()
+                    .filter(|s| s.outcome == StepOutcome::NotApplicable)
+                    .map(|s| format!("{}: no eligible accounts or tokens", s.step.describe()))
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            });
         let _ = writeln!(
             o,
             "| `{}` | {} | {} | {} |",
@@ -589,6 +623,7 @@ pub fn render_markdown(r: &Report) -> String {
                 StepOutcome::Succeeded => "succeeded",
                 StepOutcome::Failed => "failed",
                 StepOutcome::Skipped => "skipped",
+                StepOutcome::NotApplicable => "not applicable (no eligible accounts or tokens)",
             };
             let tx = st
                 .transactions
@@ -699,7 +734,7 @@ mod tests {
         let transactions = match outcome {
             StepOutcome::Succeeded => vec![tx(None)],
             StepOutcome::Failed => vec![tx(Some("InstructionError(0, Custom(1))"))],
-            StepOutcome::Skipped => vec![],
+            StepOutcome::Skipped | StepOutcome::NotApplicable => vec![],
         };
         StepRecord {
             index,
@@ -820,6 +855,14 @@ mod tests {
         // Re-serializing and parsing again is lossless.
         let again = Report::from_json(&r.to_json().unwrap()).unwrap();
         assert_eq!(r, again);
+        let old = EXAMPLE.replace(
+            "\"schema_version\": \"0.2.0\"",
+            "\"schema_version\": \"0.1.0\"",
+        );
+        assert!(
+            Report::from_json(&old).is_ok(),
+            "older reports remain readable"
+        );
     }
 
     #[test]
@@ -853,6 +896,12 @@ mod tests {
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_OK);
         assert_eq!(r.exit_code(FailOn::Rejected), EXIT_FAILURES);
         r.runs[0].status = RunStatus::Error;
+        assert_eq!(r.exit_code(FailOn::Fail), EXIT_HARNESS);
+        for run in &mut r.runs {
+            run.status = RunStatus::NotApplicable;
+        }
+        assert_eq!(r.exit_code(FailOn::Fail), EXIT_HARNESS);
+        r.runs.clear();
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_HARNESS);
     }
 

@@ -28,6 +28,7 @@
 //! produces such results.
 
 pub mod adapter;
+pub mod comparison;
 pub mod diagnosis;
 pub mod error;
 pub mod invariants;
