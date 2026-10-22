@@ -262,7 +262,8 @@ Out of the weekend cut: hooks, a third-party target, CI.
 ## 8. Next 10 tasks
 
 Status (2026-10-22): tasks 1 (runner), 2 (escrow adapter), 3 (golden test), 4 (baseline gate,
-SPL Token only) and 5 (issuer steps, Pausable, CpiGuard) are done; 6 onward are open. Known gaps
+SPL Token only), 5 (issuer steps, Pausable, CpiGuard), 6 (probe port), and 7 (third-party target) are done.
+Task 9 (hook programs) is next; task 10 (runtime binary pinning) remains open. Known gaps
 found in review and not fixed yet:
 
 - A drain scenario whose permanent-delegate slot has no custody account (for the escrow,
@@ -310,9 +311,15 @@ found in review and not fixed yet:
    without ConfidentialMintBurn is accepted. PB.1: PermissionedBurn does not exist, so its size
    and its two burn checks were not run. research/02 has a "Re-run on LiteSVM 0.10.0" section.
    The 0.16.0 probe source and output are kept in `research/logs/02_probe_litesvm-0.16.0_*`.
-7. **Third-party target.** Add `scripts/fetch_targets.sh`, pinned to `program-examples@de09019`,
-   plus `adapters/program-examples-escrow/`. Write the results to
-   `research/05_program_examples_escrow.md`.
+7. **Third-party target.** Done locally (2026-10-22): `scripts/fetch_targets.sh` pins the full
+   `de090195e4de698e150572c4f886c333323a64a5` revision, retains the upstream MIT license, and
+   copies a checked-in dependency lockfile. The adapter is 268 non-blank/non-comment lines;
+   program source is unchanged. `default`: 19 pass / 4 rejected / 9 fail / 0 error; `all`:
+   26 / 8 / 14 / 0. Both exits hit TF-02 (35), while plain Token-2022 passes. Four new tests
+   cover these results and recovery. The actual results are in README.md instead of a separate
+   write-up. Generated `--expect observed` and pass-required regressions both compile: the
+   former passes and the latter fails on the known incompatibility. The CI workflow now has
+   a separate target-build/regression-export job; GitHub execution is not verified yet.
 8. **Repository hygiene.**
    - `LICENSE`. Done (2026-10-22): MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`).
    - Done (2026-10-22): `.github/workflows/ci.yml` runs fmt, clippy and `cargo test --workspace`

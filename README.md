@@ -15,15 +15,17 @@ delegates, required memos and transfer hooks. For each case you get:
 It runs locally on [LiteSVM](https://github.com/LiteSVM/litesvm), using the real SPL Token,
 Token-2022 and Associated Token Account programs that LiteSVM bundles.
 
-## Status (2026-10-22): runner and one adapter working
+## Status (2026-10-22): runner and two targets working
 
-ExtensionLab runs cases now, against one target: the escrow in `targets/escrow`.
+ExtensionLab runs cases against the escrow in `targets/escrow` and an unmodified, pinned
+Solana Foundation escrow example fetched into `targets/program-examples`.
 
 | Part | State |
 |---|---|
 | `crates/extensionlab-core` | Mint factory for SPL Token and Token-2022 with TransferFee, DefaultAccountState(Frozen), PermanentDelegate, TransferHook (program id only), NonTransferable, Pausable, and MemoTransfer and CpiGuard on actor accounts, tested against LiteSVM's bundled programs. Scenario matrix and case expansion, invariant checks, run classification, the broken-assumption catalog, JSON and Markdown reports, CI exit codes, and regression-stub generation. **The runner:** `Runner::run_case` executes a case in a fresh LiteSVM with seeded keypairs (mints, actor accounts, flows, issuer actions: drain, freeze, harvest, set transfer fee, pause, resume, pause all; clock and epoch steps), snapshots the tracked accounts, checks the invariants, and classifies and diagnoses the run. Harness problems become `error` runs. |
 | `crates/extensionlab-cli` | `matrix`, `report`, `regress`, `adapters` and `run`. The `extensionlab` binary has no adapter compiled in; a protocol builds its own binary with `main_with(registry)`. |
 | `adapters/escrow` | Adapter for `targets/escrow` built from raw instruction bytes (no `anchor-lang` dependency), 341 non-blank lines without comments (after `cargo fmt`). Two variants: `escrow` (take creates the payout accounts) and `escrow-existing-atas` (they exist beforehand, which is what exercises required memos on payouts). The `extensionlab-escrow` binary. Golden tests check that the runner reproduces F1 and F2 below, plus harvest, expiry, freeze, CPI Guard, pause and multi-transaction behaviour. |
+| `adapters/program-examples-escrow` | First third-party adapter: `solana-foundation/program-examples` at `de090195e4de698e150572c4f886c333323a64a5`. Raw instructions, no Anchor dependency, existing payout ATAs, 268 non-blank/non-comment adapter lines. Four tests cover the baseline, both fee-blocked exits, harvest recovery, delegate drain and missing-binary errors. |
 | `targets/escrow` | An Anchor escrow written by the repository author during Turbin3 Q3 2026. It is a learning project, and its `Anchor.toml` configures localnet only. It has one added test file that reproduces its Token-2022 failures by hand. The program code is unchanged. |
 | `research/` | The reproduction write-up, an extension risk matrix, market and competitor notes, and the architecture. |
 | Transfer-hook test programs | Not written yet. CI (`.github/workflows/ci.yml`) and the license files exist. |
@@ -64,14 +66,14 @@ Requirements:
 
 - A stable Rust toolchain. Only Rust 1.98.1 on macOS has been tried; no minimum version is declared
   yet.
-- For the escrow reproduction only, the Solana CLI, for `cargo build-sbf`. Version 3.1.10 was used.
+- For runs against compiled protocol targets, the Solana CLI, for `cargo build-sbf`. Version 3.1.10 was used.
 
 ### Host workspace (no Solana toolchain needed)
 
 ```sh
-cargo test --workspace      # 72 tests: core unit tests, mint factory tests, a program-free runner
+cargo test --workspace      # 76 tests: core unit tests, mint factory tests, a program-free runner
                             # test, the 19-test extension probe, CLI tests, and 10 escrow golden
-                            # tests (these skip with a message until the escrow .so is built)
+                            # tests plus 4 third-party adapter tests (program runs skip until their .so is built)
 
 cargo run -p extensionlab-cli -- matrix list
 cargo run -p extensionlab-cli -- matrix show default
@@ -112,6 +114,51 @@ for `--adapter escrow`. CPI Guard on the maker's account makes `make` fail with 
 deposit is refused; on the taker's account `take` fails the same way after the deposit. A pause
 blocks `take` with error 67; `refund` fails on F1 before it reaches the pause.
 
+### First third-party result: Solana Foundation escrow
+
+The source at [`de090195e4de698e150572c4f886c333323a64a5`](https://github.com/solana-foundation/program-examples/tree/de090195e4de698e150572c4f886c333323a64a5/tokens/escrow/anchor)
+was fetched with its MIT license and built without changing program code. The checked-in
+`targets/locks/program-examples-escrow.Cargo.lock` pins its build dependencies (including Anchor
+1.2.1, which satisfies its declared `1.0.2` dependency). The report records the program ELF hash.
+These results were run locally on 22 October 2026 with the same LiteSVM/Token-2022 versions above:
+
+| Matrix | Pass | Rejected | Fail | Harness error |
+|---|---|---|---|---|
+| `default` (32 runs) | 19 | 4 | 9 | 0 |
+| `all` (48 runs) | 26 | 8 | 14 | 0 |
+
+- SPL Token and plain Token-2022 both pass take and refund. The original target's F1 does not
+  occur here: this example names the token program in its refund ATA constraints.
+- A 200 bps fee on `mint_a` blocks **both** take and refund with `AccountHasWithheldTransferFees`
+  (35). The rolled-back exit leaves 9,800,000 spendable plus 200,000 withheld in the vault.
+- A permissionless harvest unblocks both exits. Take delivers 9,604,000 to the taker; refund
+  restores the maker to 99,604,000. Nominal expectations still fail on the fee shortfall, while
+  refundability and closeability hold.
+- A permanent delegate can drain the real `mint_a` custody balance before either exit. The
+  transfers succeed, but the invariants detect the shortfall.
+- The pass counts include two existing catalog cases where the delegate is on `mint_b`, which
+  has no custody account: their drain step is a no-op. This known runner/catalog gap is not
+  evidence of resistance to a drain (PLAN.md section 8).
+
+Reproduce with Solana `cargo-build-sbf` 3.1.10 and its platform-tools v1.52:
+
+```sh
+scripts/fetch_targets.sh program-examples
+(cd targets/program-examples/tokens/escrow/anchor && \
+  RUSTUP_TOOLCHAIN=stable CARGO_BUILD_JOBS=4 nice -n 15 cargo build-sbf --tools-version v1.52 -- --locked)
+cargo run -p extensionlab-adapter-program-examples-escrow --locked -- \
+  run --adapter program-examples-escrow --matrix default --out extensionlab-report/program-examples
+# Exit 1 means the expected compatibility failures, not a harness error.
+```
+
+The fetch script refuses a different or modified existing checkout and supplies the pinned
+lockfile. `EXTENSIONLAB_PROGRAM_EXAMPLES_ESCROW_SO` overrides the binary path. With
+`EXTENSIONLAB_REQUIRE_TARGET_BINARIES=1`, missing binaries fail the new adapter tests rather than
+skipping. The workflow's separate `program-examples` job builds this target, runs the matrix,
+exports an `--expect observed` regression and compiles/runs it. The GitHub-hosted job has not yet
+been run; its build, matrix, tests and regression export were verified locally. The default
+pass-required export also compiles and fails on the observed incompatibility.
+
 ### Escrow reproduction
 
 ```sh
@@ -135,6 +182,9 @@ Notes:
 crates/extensionlab-core/   adapter trait, mint factory, matrix, invariants, diagnosis, report, regression, runner
 crates/extensionlab-cli/    `extensionlab` binary; protocol repos build their own binary with `main_with(registry)`
 adapters/escrow/            escrow adapter, `extensionlab-escrow` binary, golden test for F1 and F2
+adapters/program-examples-escrow/  pinned outside-target adapter and its CLI/golden tests
+scripts/fetch_targets.sh    fetch the public target with its license and pinned build lockfile
+targets/locks/              dependency lockfiles for fetched targets
 targets/escrow/             protocol under test (separate Anchor workspace, not a Cargo workspace member)
 research/                   write-ups and logs behind every claim in this README
 ```
@@ -175,9 +225,9 @@ From [PLAN.md](PLAN.md). Item 1 (runner, escrow adapter, golden test) is done.
    depositor's account and a pause (default and `all` matrices, golden tests). A fee change
    mid-flight is supported by the runner (`set_transfer_fee`, `advance_epoch`) but no escrow
    scenario uses it yet.
-3. Run the default matrix against a third-party program, starting with the
-   `solana-foundation/program-examples` escrow, and publish the actual result. The breaks predicted
-   for it in research/03 come from code reading and have not been run.
+3. Done locally (22 Oct): the default and `all` matrices were run against the pinned
+   `solana-foundation/program-examples` escrow; actual results are above. The source is unchanged.
+   Publication/outreach remains the author's choice.
 4. Build transfer-hook test programs (allow, deny, extra account) and add the hook scenarios.
 5. Add a CI workflow example, an adapter-author guide, and a pinned, hashed Token-2022 binary option
    so that results can be compared with production.

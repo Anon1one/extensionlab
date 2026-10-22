@@ -12,6 +12,7 @@ members = [
     "crates/extensionlab-core",
     "crates/extensionlab-cli",
     "adapters/escrow",
+    "adapters/program-examples-escrow",
 ]
 exclude = [
     "reference",

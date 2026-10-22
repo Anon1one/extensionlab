@@ -1,0 +1,24 @@
+[package]
+name = "extensionlab-adapter-program-examples-escrow"
+description = "ExtensionLab adapter for the pinned Solana Foundation Anchor escrow example."
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "extensionlab-program-examples-escrow"
+path = "src/main.rs"
+
+[dependencies]
+extensionlab-core.workspace = true
+extensionlab-cli.workspace = true
+litesvm.workspace = true
+solana-instruction.workspace = true
+solana-pubkey.workspace = true
+solana-sha256-hasher.workspace = true
+solana-system-interface.workspace = true
+spl-associated-token-account-interface.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

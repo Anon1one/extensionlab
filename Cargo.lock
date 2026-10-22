@@ -1070,6 +1070,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "extensionlab-adapter-program-examples-escrow"
+version = "0.1.0"
+dependencies = [
+ "extensionlab-cli",
+ "extensionlab-core",
+ "litesvm",
+ "serde_json",
+ "solana-instruction",
+ "solana-pubkey 3.0.0",
+ "solana-sha256-hasher",
+ "solana-system-interface",
+ "spl-associated-token-account-interface",
+]
+
+[[package]]
 name = "extensionlab-cli"
 version = "0.1.0"
 dependencies = [

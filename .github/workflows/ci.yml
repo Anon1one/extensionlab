@@ -1,9 +1,9 @@
-# Host-only checks for the ExtensionLab workspace.
+# Host checks and a separate run against a pinned third-party program.
 #
 # The escrow golden tests need targets/escrow/target/deploy/escrowq32026.so,
 # which is built with `cargo build-sbf` and is not committed. Without it they
-# print "skipping" and pass, so this job checks everything except the runs
-# against the real program.
+# print "skipping" and pass in the host job. The program-examples job builds
+# its actual target, requires the binary, and compiles a generated regression.
 
 name: ci
 
@@ -24,3 +24,46 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+
+  program-examples:
+    runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
+      CARGO_BUILD_JOBS: "4"
+      EXTENSIONLAB_REQUIRE_TARGET_BINARIES: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned Solana build tools
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSfL https://release.anza.xyz/v3.1.10/install -o "$RUNNER_TEMP/install-solana.sh"
+          sh "$RUNNER_TEMP/install-solana.sh"
+          printf '%s\n' "$HOME/.local/share/solana/install/active_release/bin" >> "$GITHUB_PATH"
+      - name: Fetch unmodified upstream source and pinned dependencies
+        run: scripts/fetch_targets.sh program-examples
+      - name: Build the upstream escrow
+        working-directory: targets/program-examples/tokens/escrow/anchor
+        run: cargo build-sbf --tools-version v1.52 -- --locked
+      - name: Run the default matrix (compatibility failures are expected)
+        run: |
+          status=0
+          cargo run --locked -p extensionlab-adapter-program-examples-escrow -- run --adapter program-examples-escrow --matrix default --out extensionlab-report/program-examples || status=$?
+          test "$status" -eq 1
+      - name: Export and compile the observed regression
+        run: |
+          cargo run --locked -p extensionlab-adapter-program-examples-escrow -- regress extensionlab-report/program-examples/report.json --run transfer_fee_200bps@mint_a/make_offer_refund_offer --expect observed --adapter-expr 'extensionlab_adapter_program_examples_escrow::boxed()' --out adapters/program-examples-escrow/tests/generated_fee_close.rs
+          cargo test --locked -p extensionlab-adapter-program-examples-escrow
+      - name: Publish job summary
+        if: always()
+        run: |
+          if test -f extensionlab-report/program-examples/report.md; then
+            cat extensionlab-report/program-examples/report.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: program-examples-compatibility
+          path: |
+            extensionlab-report/program-examples/
+            adapters/program-examples-escrow/tests/generated_fee_close.rs
