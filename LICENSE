@@ -1,0 +1,20 @@
+Copyright (c) 2026 Akshat Odiya. All rights reserved.
+
+This repository and everything in it (source code, documentation, research
+notes, data and test fixtures) is proprietary and confidential.
+
+No license is granted. Without the prior written permission of the copyright
+holder, no one may use, copy, modify, merge, publish, distribute, sublicense,
+sell, or create derivative works from any part of this repository, in whole or
+in part, by any means.
+
+Third-party software that this repository depends on or bundles (for example
+the Rust crates listed in Cargo.lock) remains under its own license and is not
+covered by this notice.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

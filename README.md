@@ -26,7 +26,7 @@ ExtensionLab runs cases now, against one target: the escrow in `targets/escrow`.
 | `adapters/escrow` | Adapter for `targets/escrow` built from raw instruction bytes (no `anchor-lang` dependency), 341 non-blank lines without comments (after `cargo fmt`). Two variants: `escrow` (take creates the payout accounts) and `escrow-existing-atas` (they exist beforehand, which is what exercises required memos on payouts). The `extensionlab-escrow` binary. Golden tests check that the runner reproduces F1 and F2 below, plus harvest, expiry, freeze, CPI Guard, pause and multi-transaction behaviour. |
 | `targets/escrow` | An Anchor escrow written by the repository author during Turbin3 Q3 2026. It is a learning project, and its `Anchor.toml` configures localnet only. It has one added test file that reproduces its Token-2022 failures by hand. The program code is unchanged. |
 | `research/` | The reproduction write-up, an extension risk matrix, market and competitor notes, and the architecture. |
-| Transfer-hook test programs, CI workflow, license | Not written yet. |
+| Transfer-hook test programs | Not written yet. CI (`.github/workflows/ci.yml`) and a proprietary `LICENSE` exist. |
 
 See [PLAN.md](PLAN.md) for what comes next and what would make this direction wrong.
 
@@ -193,4 +193,4 @@ From [PLAN.md](PLAN.md). Item 1 (runner, escrow adapter, golden test) is done.
 
 ## License
 
-No license has been chosen yet. Until a `LICENSE` file is added, no reuse rights are granted.
+Proprietary, all rights reserved; see [LICENSE](LICENSE). No reuse rights are granted without the author's written permission.
