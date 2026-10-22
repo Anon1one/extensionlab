@@ -4,6 +4,7 @@ description = "ExtensionLab adapter for the Turbin3 Q3 2026 Anchor escrow in tar
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
+license.workspace = true
 
 [[bin]]
 name = "extensionlab-escrow"

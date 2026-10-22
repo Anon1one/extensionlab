@@ -26,7 +26,7 @@ ExtensionLab runs cases now, against one target: the escrow in `targets/escrow`.
 | `adapters/escrow` | Adapter for `targets/escrow` built from raw instruction bytes (no `anchor-lang` dependency), 341 non-blank lines without comments (after `cargo fmt`). Two variants: `escrow` (take creates the payout accounts) and `escrow-existing-atas` (they exist beforehand, which is what exercises required memos on payouts). The `extensionlab-escrow` binary. Golden tests check that the runner reproduces F1 and F2 below, plus harvest, expiry, freeze, CPI Guard, pause and multi-transaction behaviour. |
 | `targets/escrow` | An Anchor escrow written by the repository author during Turbin3 Q3 2026. It is a learning project, and its `Anchor.toml` configures localnet only. It has one added test file that reproduces its Token-2022 failures by hand. The program code is unchanged. |
 | `research/` | The reproduction write-up, an extension risk matrix, market and competitor notes, and the architecture. |
-| Transfer-hook test programs | Not written yet. CI (`.github/workflows/ci.yml`) and a proprietary `LICENSE` exist. |
+| Transfer-hook test programs | Not written yet. CI (`.github/workflows/ci.yml`) and the license files exist. |
 
 See [PLAN.md](PLAN.md) for what comes next and what would make this direction wrong.
 
@@ -193,4 +193,13 @@ From [PLAN.md](PLAN.md). Item 1 (runner, escrow adapter, golden test) is done.
 
 ## License
 
-Proprietary, all rights reserved; see [LICENSE](LICENSE). No reuse rights are granted without the author's written permission.
+Licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option.
+
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in
+this repository by you, as defined in the Apache-2.0 license, shall be dual licensed as above,
+without any additional terms or conditions.

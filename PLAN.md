@@ -213,7 +213,7 @@ minimum demo for a grant application or the Hacker House, not an entry to a spec
 - Write the escrow adapter from raw instruction bytes, with the golden test for F1 and F2.
 - Decide the baseline gate (decision 1 below). Done: SPL Token only.
 - Repository hygiene:
-  - add a LICENSE (done 2026-10-22: proprietary, all rights reserved);
+  - add a LICENSE (done 2026-10-22: MIT OR Apache-2.0);
   - add the CI workflow;
   - remove absolute paths;
   - decide what happens to `research/fixcheck/escrow_patched`.
@@ -314,7 +314,7 @@ found in review and not fixed yet:
    plus `adapters/program-examples-escrow/`. Write the results to
    `research/05_program_examples_escrow.md`.
 8. **Repository hygiene.**
-   - `LICENSE`. Done (2026-10-22): proprietary, all rights reserved, at the author's request.
+   - `LICENSE`. Done (2026-10-22): MIT OR Apache-2.0 (`LICENSE-MIT`, `LICENSE-APACHE`).
    - Done (2026-10-22): `.github/workflows/ci.yml` runs fmt, clippy and `cargo test --workspace`
      on the host (the golden tests skip without the `.so`), and the `/Users/...` paths in
      `research/` are replaced with repo-relative ones.
@@ -337,9 +337,9 @@ found in review and not fixed yet:
 2. **Fee-explained mismatches.** Should a balance that differs exactly by the configured fee get a
    softer status, or must adapters write fee-aware expectations? Recommendation: keep `fail` and
    ship a helper for fee-aware expectations, so the default shows the shortfall.
-3. **License**: decided 2026-10-22, proprietary (all rights reserved); the repository is private.
-   Still open: whether the research write-ups (written by agents) ship as they are if it is ever
-   made public.
+3. **License**: decided 2026-10-22, MIT OR Apache-2.0; the repository stays private for now.
+   Still open: whether the research write-ups (written by agents) ship as they are when it is made
+   public.
 
 ## 9. Risks and what would make this direction wrong
 
