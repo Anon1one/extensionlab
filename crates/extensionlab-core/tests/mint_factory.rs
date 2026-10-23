@@ -129,6 +129,33 @@ fn a_missing_account_reads_as_none() {
         .is_none());
 }
 
+#[test]
+fn account_readers_reject_token_layouts_owned_by_another_program() {
+    for program in [TokenProgram::SplToken, TokenProgram::Token2022] {
+        let mut e = env();
+        let mint = Keypair::new();
+        let owner = Keypair::new();
+        let config = MintConfig::neutral(program, 6);
+        let provisioned =
+            create_mint(&mut e.svm, &config, &e.payer, &mint, &e.issuer.pubkey()).unwrap();
+        let token =
+            create_actor_token_account(&mut e.svm, &provisioned, &e.payer, &owner, &e.issuer)
+                .unwrap();
+        let mut mint_account = e.svm.get_account(&provisioned.address).unwrap();
+        mint_account.owner = solana_system_interface::program::id();
+        e.svm
+            .set_account(provisioned.address, mint_account)
+            .unwrap();
+        assert!(read_mint(&e.svm, &provisioned.address).is_err());
+        assert!(epoch_transfer_fee(&e.svm, &provisioned.address).is_err());
+
+        let mut token_account = e.svm.get_account(&token).unwrap();
+        token_account.owner = solana_system_interface::program::id();
+        e.svm.set_account(token, token_account).unwrap();
+        assert!(read_token_account(&e.svm, &token).is_err());
+    }
+}
+
 fn two_funded_accounts(
     e: &mut Env,
     config: &MintConfig,

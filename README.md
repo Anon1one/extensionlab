@@ -75,7 +75,7 @@ Requirements:
 ### Host workspace (no Solana toolchain needed)
 
 ```sh
-cargo test --workspace --locked # 101 tests, including 22 protocol golden tests.
+cargo test --workspace --locked # 132 tests, including 22 protocol golden tests.
                               # Program runs skip until their .so is built; target CI jobs require it.
 
 cargo run -p extensionlab-cli -- matrix list
@@ -101,6 +101,9 @@ Exit codes:
 
 An issuer action with no eligible accounts or tokens is **not applicable**, never a pass.
 Other steps still run, and actual failures take precedence over not-applicable status.
+Expected balances are checked after each successful flow as well as for the complete scenario;
+offsetting deposit and withdrawal errors cannot cancel. Empty flows are harness errors, and a
+cleanly rejected SPL Token baseline exits 4. Imported reports are validated before use as evidence.
 
 ### Start an adapter in your own repository
 
@@ -128,6 +131,10 @@ worsening balance mismatches, removed cases or expectations, and lost invariant 
 the gate. Case definitions and seeds must match. Token-runtime changes fail with exit 3 unless
 explicitly acknowledged with `--allow-runtime-change`; protocol ELF changes are expected.
 Use reports from trusted base/head builds using the same ExtensionLab version.
+Report schema 0.3.0 includes per-flow balance evidence and step indices. Schemas 0.1 and 0.2
+remain readable; lost checks and worsening flow-level mismatches also fail the comparison.
+Changed failure evidence without structured balance rows requires review even when a case was
+already failing; unchanged known failures remain accepted by the comparison gate.
 
 The root `action.yml` packages this for GitHub Actions after the caller builds its adapter and
 target programs. It requires no API key or repository write permission:
@@ -259,10 +266,13 @@ The adapter uses unchanged
 (MIT): a token lock, recipient redeem, or sender refund after the actual 60-second timelock.
 It reads the real lock's recorded amount, which correctly measures the net deposit.
 
-| Matrix | Pass | Rejected | Fail | Harness error |
-|---|---|---|---|---|
-| `default` (22 runs) | 10 | 8 | 4 | 0 |
-| `all` (30 runs) | 12 | 12 | 6 | 0 |
+| Matrix | Pass | Rejected | Fail | Harness error | Not applicable |
+|---|---|---|---|---|---|
+| `default` (22 runs) | 8 | 8 | 4 | 0 | 2 |
+| `all` (30 runs) | 10 | 12 | 6 | 0 | 2 |
+
+The two not-applicable cases harvest from a zero-fee mint with no withheld tokens. No harvest
+transaction is sent; later exit flows still execute. These are not evidence of fee recovery.
 
 Plain SPL Token and Token-2022 settle; permanent-delegate and hook mints are rejected before
 custody. The earlier research prediction that a failed close could be tolerated was wrong:
@@ -373,8 +383,8 @@ From [PLAN.md](PLAN.md). Item 1 (runner, escrow adapter, golden test) is done.
   mainnet or devnet behave the same has not been checked.
 - Severity labels in `research/` are the authors' judgment, not an audit rating.
 - `research/02` and `research/03` tag each claim with its evidence (`[probe]`, `[src]`, `[doc]`,
-  `[predicted]`, `[unverified]` and similar). Only `[probe]` claims, the mint factory tests and the
-  reproduction in `research/01` were observed by running code.
+  `[predicted]`, `[unverified]` and similar). Current protocol execution evidence is in the adapter
+  golden tests and the results above; older research predictions retain their original labels.
 
 ## License
 

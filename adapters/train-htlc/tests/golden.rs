@@ -65,8 +65,9 @@ fn baselines_pass_and_permanent_delegate_mints_are_rejected_before_custody() {
             report.summary.fail,
             report.summary.error
         ),
-        (22, 10, 8, 4, 0)
+        (22, 8, 8, 4, 0)
     );
+    assert_eq!(report.summary.not_applicable, 2);
     for token in ["spl_token", "token_2022"] {
         for exit in ["redeem", "refund"] {
             assert_eq!(
@@ -154,8 +155,9 @@ fn harvest_unblocks_both_net_accounted_exits_and_other_extensions_are_exercised(
             report.summary.fail,
             report.summary.error
         ),
-        (30, 12, 12, 6, 0)
+        (30, 10, 12, 6, 0)
     );
+    assert_eq!(report.summary.not_applicable, 2);
     for exit in ["redeem", "refund"] {
         let run = report
             .run(&format!("transfer_fee_200bps@token/lock_harvest_{exit}"))

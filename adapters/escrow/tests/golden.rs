@@ -34,13 +34,25 @@ fn golden_matrix() -> Matrix {
     }
 }
 
+fn binary_available(adapter: &EscrowAdapter) -> bool {
+    if adapter.so_path.is_file() {
+        return true;
+    }
+    assert!(
+        std::env::var_os("EXTENSIONLAB_REQUIRE_TARGET_BINARIES").is_none(),
+        "required escrow binary missing: {}",
+        adapter.so_path.display()
+    );
+    eprintln!(
+        "skipping: {} is missing; run `cargo build-sbf` in targets/escrow",
+        adapter.so_path.display()
+    );
+    false
+}
+
 fn run_matrix(seed: u64) -> Option<Report> {
     let mut adapter = EscrowAdapter::new();
-    if !adapter.so_path.is_file() {
-        eprintln!(
-            "skipping: {} is missing; run `cargo build-sbf` in targets/escrow",
-            adapter.so_path.display()
-        );
+    if !binary_available(&adapter) {
         return None;
     }
     let runner = Runner::new(RunnerOptions {
@@ -240,8 +252,7 @@ fn run_custom(
     make_then: Option<&'static str>,
 ) -> Option<Report> {
     let inner = EscrowAdapter::new();
-    if !inner.so_path.is_file() {
-        eprintln!("skipping: {} is missing", inner.so_path.display());
+    if !binary_available(&inner) {
         return None;
     }
     let mut adapter = Custom {
@@ -432,7 +443,7 @@ fn expiry_and_freeze_scenarios() {
 #[test]
 fn existing_payout_accounts_expose_required_memos() {
     let mut adapter = EscrowAdapter::with_existing_payout_accounts();
-    if !adapter.so_path.is_file() {
+    if !binary_available(&adapter) {
         return;
     }
     let matrix = Matrix {
@@ -543,7 +554,7 @@ fn cpi_guard_and_pause_scenarios() {
 #[test]
 fn all_preset_runs_pause_and_cpi_guard_cases() {
     let mut adapter = EscrowAdapter::new();
-    if !adapter.so_path.is_file() {
+    if !binary_available(&adapter) {
         return;
     }
     let matrix = extensionlab_core::matrix::preset("all").expect("preset");

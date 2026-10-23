@@ -106,11 +106,18 @@ pub enum CheckStatus {
 /// Result of one invariant check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InvariantCheck {
+    /// Expected and observed balances for this check, when it compares balances.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub balance_rows: Vec<BalanceRow>,
     /// Which invariant.
     pub invariant: InvariantKind,
     /// Mint slot the check is scoped to, when it is per mint.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slot: Option<String>,
+    /// Scenario step that produced this check. `None` denotes a check over
+    /// the whole scenario; older reports do not contain step metadata.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step_index: Option<usize>,
     /// Outcome.
     pub status: CheckStatus,
     /// Human-readable explanation with the numbers involved.
@@ -125,8 +132,10 @@ impl InvariantCheck {
         detail: String,
     ) -> Self {
         Self {
+            balance_rows: Vec::new(),
             invariant,
             slot,
+            step_index: None,
             status,
             detail,
         }
@@ -244,7 +253,7 @@ pub fn expected_balances(
             exists_after: a.exists,
         });
     }
-    let check = if want.is_empty() {
+    let mut check = if want.is_empty() {
         InvariantCheck::new(
             InvariantKind::ExpectedBalances,
             None,
@@ -266,6 +275,7 @@ pub fn expected_balances(
             mismatches.join("; "),
         )
     };
+    check.balance_rows = rows.clone();
     Ok((rows, check))
 }
 
@@ -345,8 +355,9 @@ pub struct ExitAttempt {
 ///
 /// `deposited` is what left the depositor in the entry flow; `returned` is
 /// what came back to the depositor (or counterparty, for a swap) in the exit
-/// flow; `allowed_loss` is the fee the config predicts for the round trip
-/// (see `MintConfig::transfer_fee_for`). Pass `entry_succeeded = false` when
+/// flow; `allowed_loss` is the verified token-fee allowance for the round trip.
+/// The runner observes fees in account and mint withheld pools so that each
+/// individual transfer's rounding and cap are counted. Pass `entry_succeeded = false` when
 /// the entry flow failed: there is nothing to refund and the check is skipped.
 pub fn refundability(
     entry_succeeded: bool,

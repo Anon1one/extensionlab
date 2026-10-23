@@ -27,7 +27,7 @@ use solana_keypair::Keypair;
 use solana_message::Message;
 use solana_pubkey::Pubkey;
 use solana_signer::Signer;
-use solana_transaction::Transaction;
+use solana_transaction::{Transaction, TransactionError};
 use spl_associated_token_account_interface::instruction::create_associated_token_account;
 use spl_token_2022_interface::{
     extension::{
@@ -196,11 +196,11 @@ impl Runner {
     ///    logs; snapshot after the step; stop at the first failed transaction
     ///    and mark the remaining steps skipped.
     /// 8. Invariants: conservation over the whole scenario; expected balances
-    ///    over the flows that ran (when no transaction was committed the run
+    ///    around each successful flow and over the flows that ran (when no transaction was committed the run
     ///    was cleanly rejected and no balance may change);
     ///    credited-equals-received around each successful flow;
     ///    refundability for each entry/exit pair; closeability after the
-    ///    first successful exit.
+    ///    every successful exit.
     /// 9. `report::classify`, then `diagnosis::diagnose`.
     ///
     /// A harness problem (setup failure, adapter error, unreadable account)
@@ -230,15 +230,58 @@ impl Runner {
                 });
             }
             run.status = RunStatus::Error;
-            run.harness_error = Some(e.to_string());
-            run.balances.clear();
-            run.invariants.clear();
+            run.harness_error = Some(if run.balances.is_empty() {
+                e.to_string()
+            } else {
+                format!("{e}; balance rows retain the last readable snapshot before the harness stopped")
+            });
             run.diagnosis = None;
         }
         Ok(run)
     }
 
     fn execute(&self, adapter: &mut dyn Adapter, case: &Case, run: &mut RunResult) -> Result<()> {
+        if !case
+            .scenario
+            .steps
+            .iter()
+            .any(|step| matches!(step, Step::Flow { .. }))
+        {
+            return Err(Error::Adapter(
+                "scenario must contain at least one protocol flow".into(),
+            ));
+        }
+        let mut declared = BTreeSet::new();
+        for slot in adapter.mint_slots() {
+            if slot.trim().is_empty() || !declared.insert(slot.clone()) {
+                return Err(Error::Adapter(format!(
+                    "mint slot `{slot}` is empty or declared more than once"
+                )));
+            }
+        }
+        if declared.is_empty() || declared != case.slots.keys().cloned().collect() {
+            return Err(Error::Adapter(
+                "case must assign exactly the adapter's declared mint slots".into(),
+            ));
+        }
+        if let Some(slot) = &case.varied_slot {
+            if !declared.contains(slot) {
+                return Err(Error::Adapter(format!(
+                    "varied slot `{slot}` is not declared by the adapter"
+                )));
+            }
+        }
+        let mut flow_kinds = BTreeMap::new();
+        for flow in adapter.flows() {
+            if flow.name.trim().is_empty()
+                || flow_kinds.insert(flow.name.clone(), flow.kind).is_some()
+            {
+                return Err(Error::Adapter(format!(
+                    "flow `{}` is empty or declared more than once",
+                    flow.name
+                )));
+            }
+        }
         let key = |name: &str| derive_keypair(self.options.seed, &case.id, name);
 
         // 1-2. VM, programs, issuer.
@@ -252,13 +295,7 @@ impl Runner {
         world.label(issuer_pk, "issuer");
 
         // 3. Mints and issuer accounts.
-        let declared: BTreeSet<String> = adapter.mint_slots().into_iter().collect();
         for (slot, config) in &case.slots {
-            if !declared.contains(slot) {
-                return Err(Error::Adapter(format!(
-                    "case assigns undeclared mint slot `{slot}`"
-                )));
-            }
             let mint_kp = key(&format!("mint:{slot}"));
             let provisioned =
                 mint::create_mint(&mut world.svm, config, &world.issuer, &mint_kp, &issuer_pk)?;
@@ -297,7 +334,7 @@ impl Runner {
         // 5. Protocol setup.
         for tx in adapter.setup(&world)? {
             let signed = sign_flow_tx(&world, &tx)?;
-            let record = self.submit(&mut world.svm, signed);
+            let (record, _) = self.submit(&mut world.svm, signed);
             if let Some(err) = record.error {
                 return Err(Error::SetupTransaction {
                     what: "adapter setup".into(),
@@ -318,11 +355,18 @@ impl Runner {
             });
         }
         let mut labels = BTreeSet::new();
+        let mut addresses = BTreeSet::new();
         for t in &tracked {
             if !labels.insert(t.label.as_str()) {
                 return Err(Error::Adapter(format!(
                     "tracked account label `{}` is used twice",
                     t.label
+                )));
+            }
+            if !addresses.insert(t.address) {
+                return Err(Error::Adapter(format!(
+                    "tracked account address `{}` is used twice; aliases would count the same balance more than once",
+                    t.address
                 )));
             }
             if !case.slots.contains_key(&t.slot) {
@@ -335,21 +379,15 @@ impl Runner {
         for t in &tracked {
             world.label(t.address, t.label.clone());
         }
-        let flow_kinds: BTreeMap<String, FlowKind> = adapter
-            .flows()
-            .into_iter()
-            .map(|f| (f.name, f.kind))
-            .collect();
 
         // 7. Steps. Steps run in order until the first failure, so the
         // executed steps are a prefix and `snaps[i + 1]` is the snapshot
         // after step `i` for every executed step.
         let mut snaps = vec![snapshot(&world, &tracked)?];
-        // Transfer fee in effect per slot at each snapshot, parallel to
-        // `snaps`. A step's fee is the one at the snapshot after it: flows do
-        // not change the epoch, and an epoch step moves no tokens.
-        let mut fees = vec![fee_rates(&world)?];
+        run.balances = invariants::expected_balances(&snaps[0], &snaps[0], &[])?.0;
         let mut credit_checks = Vec::new();
+        let mut flow_checks = Vec::new();
+        let mut close_checks = Vec::new();
         // Capture expectations before each flow executes. Reading the final
         // world would apply a later issuer fee or epoch to an earlier flow.
         let mut flow_expectations = BTreeMap::new();
@@ -375,6 +413,11 @@ impl Runner {
                     let credits = adapter.credits(&world)?;
                     flow_expectations.insert(index, adapter.expected_deltas(name, &world)?);
                     let txs = adapter.build_flow(name, &world)?;
+                    if txs.is_empty() || txs.iter().any(|tx| tx.instructions.is_empty()) {
+                        return Err(Error::Adapter(format!(
+                            "flow `{name}` must return at least one transaction, with instructions in every transaction"
+                        )));
+                    }
                     (
                         txs.into_iter().map(PendingTx::Flow).collect::<Vec<_>>(),
                         Some(credits),
@@ -425,13 +468,42 @@ impl Runner {
                         if !record.transactions.is_empty() {
                             record.outcome = StepOutcome::Failed;
                             run.steps.push(record);
+                            if let Ok(after) = snapshot(&world, &tracked) {
+                                retain_snapshot_evidence(
+                                    run,
+                                    &snaps[0],
+                                    &after,
+                                    &flow_checks,
+                                    &credit_checks,
+                                    &close_checks,
+                                )?;
+                            }
                         }
                         return Err(e);
                     }
                 };
-                let tx_record = self.submit(&mut world.svm, tx);
+                let (tx_record, invalid_execution) = self.submit(&mut world.svm, tx);
                 let failed = tx_record.error.is_some();
+                let execution_error = tx_record.error.clone();
                 record.transactions.push(tx_record);
+                if invalid_execution {
+                    record.outcome = StepOutcome::Failed;
+                    run.steps.push(record);
+                    if let Ok(after) = snapshot(&world, &tracked) {
+                        retain_snapshot_evidence(
+                            run,
+                            &snaps[0],
+                            &after,
+                            &flow_checks,
+                            &credit_checks,
+                            &close_checks,
+                        )?;
+                    }
+                    return Err(Error::Adapter(format!(
+                        "scenario transaction could not execute: {}",
+                        execution_error.unwrap_or_default()
+                    )));
+                }
                 if failed {
                     record.outcome = StepOutcome::Failed;
                     break;
@@ -441,19 +513,54 @@ impl Runner {
             stopped = record.outcome == StepOutcome::Failed;
             run.steps.push(record);
             let after = snapshot(&world, &tracked)?;
+            retain_snapshot_evidence(
+                run,
+                &snaps[0],
+                &after,
+                &flow_checks,
+                &credit_checks,
+                &close_checks,
+            )?;
             if let (Some(before), true) = (credits_before, succeeded) {
                 flows_succeeded += 1;
-                let credits_after = adapter.credits(&world)?;
                 let prev = snaps.last().expect("initial snapshot");
-                credit_checks.push(invariants::credited_equals_received(
-                    &before,
-                    &credits_after,
+                let (_, mut flow_check) = invariants::expected_balances(
                     prev,
                     &after,
-                ));
+                    flow_expectations
+                        .get(&index)
+                        .expect("flow expectations captured"),
+                )?;
+                flow_check.step_index = Some(index);
+                flow_check.detail = format!("{}: {}", step.describe(), flow_check.detail);
+                flow_checks.push(flow_check);
+                run.invariants.extend(flow_checks.last().cloned());
+                let credits_after = adapter.credits(&world)?;
+                let mut credit_check =
+                    invariants::credited_equals_received(&before, &credits_after, prev, &after);
+                credit_check.step_index = Some(index);
+                credit_checks.push(credit_check);
+                run.invariants.extend(credit_checks.last().cloned());
+                if is_flow_of_kind(step, FlowKind::Exit, &flow_kinds) {
+                    let closable = adapter.closable_accounts(&world)?;
+                    let mut close_check = invariants::closeability(&closable, &after);
+                    close_check.step_index = Some(index);
+                    close_checks.push(close_check);
+                }
             }
             snaps.push(after);
-            fees.push(fee_rates(&world)?);
+            // Preserve evidence even if a later adapter method or snapshot
+            // fails. These are the last balances we successfully read, not
+            // a guess about the interrupted step's final state.
+            let latest = snaps.last().expect("snapshot just captured");
+            retain_snapshot_evidence(
+                run,
+                &snaps[0],
+                latest,
+                &flow_checks,
+                &credit_checks,
+                &close_checks,
+            )?;
         }
 
         // 8. Invariants.
@@ -503,6 +610,7 @@ impl Runner {
             );
         }
         checks.push(balance_check);
+        checks.extend(flow_checks);
 
         if flows_succeeded == 0 {
             checks.push(check(
@@ -533,26 +641,25 @@ impl Runner {
             case,
             &run.steps,
             &snaps,
-            &fees,
             &tracked,
             &flow_kinds,
         ));
 
-        let closable = adapter.closable_accounts(&world)?;
-        let first_exit = case.scenario.steps.iter().enumerate().position(|(i, s)| {
-            is_flow_of_kind(s, FlowKind::Exit, &flow_kinds)
-                && run.steps[i].outcome == StepOutcome::Succeeded
-        });
-        checks.push(match first_exit {
-            Some(i) => invariants::closeability(&closable, &snaps[i + 1]),
-            None if closable.is_empty() => invariants::closeability(&closable, last),
-            None => check(
-                InvariantKind::Closeability,
-                None,
-                CheckStatus::Skipped,
-                "no exit flow succeeded".into(),
-            ),
-        });
+        if close_checks.is_empty() {
+            let closable = adapter.closable_accounts(&world)?;
+            checks.push(if closable.is_empty() {
+                invariants::closeability(&closable, last)
+            } else {
+                check(
+                    InvariantKind::Closeability,
+                    None,
+                    CheckStatus::Skipped,
+                    "no exit flow succeeded".into(),
+                )
+            });
+        } else {
+            checks.extend(close_checks);
+        }
 
         // 9. Status and diagnosis.
         let policy = support_policy(adapter, case);
@@ -566,7 +673,7 @@ impl Runner {
     /// Send a signed transaction and record it. Expires the blockhash
     /// afterwards so that a later, byte-identical transaction is not rejected
     /// as already processed.
-    fn submit(&self, svm: &mut LiteSVM, tx: Transaction) -> TxRecord {
+    fn submit(&self, svm: &mut LiteSVM, tx: Transaction) -> (TxRecord, bool) {
         let signature = tx
             .signatures
             .first()
@@ -575,24 +682,51 @@ impl Runner {
         let result = svm.send_transaction(tx);
         svm.expire_blockhash();
         match result {
-            Ok(meta) => TxRecord {
-                signature,
-                compute_units: meta.compute_units_consumed,
-                fee_lamports: meta.fee,
-                error: None,
-                logs: if self.options.keep_success_logs {
-                    meta.logs
-                } else {
-                    Vec::new()
+            Ok(meta) => (
+                TxRecord {
+                    signature,
+                    compute_units: meta.compute_units_consumed,
+                    fee_lamports: meta.fee,
+                    error: None,
+                    logs: if self.options.keep_success_logs {
+                        meta.logs
+                    } else {
+                        Vec::new()
+                    },
                 },
-            },
-            Err(failed) => TxRecord {
-                signature,
-                compute_units: failed.meta.compute_units_consumed,
-                fee_lamports: failed.meta.fee,
-                error: Some(format!("{:?}", failed.err)),
-                logs: failed.meta.logs,
-            },
+                false,
+            ),
+            Err(failed) => {
+                // These errors mean the test transaction was not wired or
+                // submitted correctly, not that a protocol rejected a mint.
+                // Instruction/rent/resource failures retain their ordinary
+                // compatibility classification and transaction evidence.
+                let invalid_execution = matches!(
+                    failed.err,
+                    TransactionError::AccountNotFound
+                        | TransactionError::ProgramAccountNotFound
+                        | TransactionError::InsufficientFundsForFee
+                        | TransactionError::InvalidAccountForFee
+                        | TransactionError::AlreadyProcessed
+                        | TransactionError::BlockhashNotFound
+                        | TransactionError::MissingSignatureForFee
+                        | TransactionError::InvalidAccountIndex
+                        | TransactionError::SignatureFailure
+                        | TransactionError::InvalidProgramForExecution
+                        | TransactionError::SanitizeFailure
+                        | TransactionError::UnsupportedVersion
+                );
+                (
+                    TxRecord {
+                        signature,
+                        compute_units: failed.meta.compute_units_consumed,
+                        fee_lamports: failed.meta.fee,
+                        error: Some(format!("{:?}", failed.err)),
+                        logs: failed.meta.logs,
+                    },
+                    invalid_execution,
+                )
+            }
         }
     }
 }
@@ -624,11 +758,29 @@ fn check(
     detail: String,
 ) -> InvariantCheck {
     InvariantCheck {
+        balance_rows: Vec::new(),
         invariant,
         slot,
+        step_index: None,
         status,
         detail,
     }
+}
+
+fn retain_snapshot_evidence(
+    run: &mut RunResult,
+    initial: &Snapshot,
+    latest: &Snapshot,
+    flow_checks: &[InvariantCheck],
+    credit_checks: &[InvariantCheck],
+    close_checks: &[InvariantCheck],
+) -> Result<()> {
+    run.balances = invariants::expected_balances(initial, latest, &[])?.0;
+    run.invariants = invariants::conservation(initial, latest);
+    run.invariants.extend(flow_checks.iter().cloned());
+    run.invariants.extend(credit_checks.iter().cloned());
+    run.invariants.extend(close_checks.iter().cloned());
+    Ok(())
 }
 
 fn airdrop(svm: &mut LiteSVM, to: &Pubkey, lamports: u64) -> Result<()> {
@@ -770,11 +922,17 @@ fn issuer_instructions(
         IssuerAction::HarvestWithheld { slot } => {
             let provisioned = world.mint(slot)?;
             if provisioned.config.transfer_fee().is_some() {
-                let sources: Vec<&Pubkey> = tracked
+                let mut sources = Vec::new();
+                for t in tracked
                     .iter()
                     .filter(|t| &t.slot == slot && account_exists(&world.svm, &t.address))
-                    .map(|t| &t.address)
-                    .collect();
+                {
+                    if mint::read_token_account(&world.svm, &t.address)?
+                        .is_some_and(|view| view.withheld > 0)
+                    {
+                        sources.push(&t.address);
+                    }
+                }
                 if !sources.is_empty() {
                     out.push(vec![harvest_withheld_tokens_to_mint(
                         &provisioned.program_id(),
@@ -839,19 +997,6 @@ fn issuer_instructions(
     Ok(out)
 }
 
-/// The transfer fee in effect for every slot's mint at the current epoch.
-fn fee_rates(world: &World) -> Result<BTreeMap<String, Option<(u16, u64)>>> {
-    world
-        .mints()
-        .map(|(slot, m)| {
-            Ok((
-                slot.clone(),
-                mint::epoch_transfer_fee(&world.svm, &m.address)?,
-            ))
-        })
-        .collect()
-}
-
 fn account_exists(svm: &LiteSVM, address: &Pubkey) -> bool {
     svm.get_account(address)
         .map(|a| a.lamports > 0)
@@ -865,7 +1010,27 @@ fn snapshot(world: &World, tracked: &[TrackedAccount]) -> Result<Snapshot> {
     let mut accounts = Vec::with_capacity(tracked.len());
     for t in tracked {
         let view = if account_exists(&world.svm, &t.address) {
-            mint::read_token_account(&world.svm, &t.address)?
+            let provisioned = world.mint(&t.slot)?;
+            let account = world.svm.get_account(&t.address).expect("account exists");
+            if account.owner != provisioned.program_id() {
+                return Err(Error::AccountRead {
+                    address: t.address.to_string(),
+                    reason: format!("tracked account `{}` is owned by {}, expected token program {} for slot `{}`", t.label, account.owner, provisioned.program_id(), t.slot),
+                });
+            }
+            let view = mint::read_token_account(&world.svm, &t.address)?;
+            if let Some(view) = &view {
+                if view.mint != provisioned.address {
+                    return Err(Error::AccountRead {
+                        address: t.address.to_string(),
+                        reason: format!(
+                            "tracked account `{}` belongs to mint {}, expected {} for slot `{}`",
+                            t.label, view.mint, provisioned.address, t.slot
+                        ),
+                    });
+                }
+            }
+            view
         } else {
             None
         };
@@ -912,14 +1077,14 @@ fn is_flow_of_kind(step: &Step, kind: FlowKind, kinds: &BTreeMap<String, FlowKin
 /// Per mint slot whose custody accounts received tokens in the entry flow:
 /// `deposited` is what left the non-custody, non-issuer tracked accounts in
 /// the entry flow, and `returned` is what those accounts received in the exit
-/// flow. The allowed loss is the transfer fee in effect during the entry flow
-/// on the deposit, plus the fee in effect during the exit flow on the way back
-/// out (they differ after an `issuer:set_transfer_fee` and enough epochs).
+/// flow. The allowed loss is the increase in withheld fees across the entry
+/// and exit, counting both accounts and the mint pool. Token fees round and
+/// cap per transfer; computing one fee on the aggregate amount is incorrect
+/// for flows containing multiple transfers.
 fn refundability_checks(
     case: &Case,
     steps: &[StepRecord],
     snaps: &[Snapshot],
-    fees: &[BTreeMap<String, Option<(u16, u64)>>],
     tracked: &[TrackedAccount],
     kinds: &BTreeMap<String, FlowKind>,
 ) -> Vec<InvariantCheck> {
@@ -996,16 +1161,6 @@ fn refundability_checks(
                     .sum()
             };
             let deposited = moved(entry_before, entry_after, true);
-            // The exit's fee: the snapshot after the exit step when it ran,
-            // else the latest one (a failed or skipped exit never moved
-            // tokens, so this only affects the detail text).
-            let fee_at = |k: usize, amount: u64| match fees.get(k).and_then(|f| f.get(slot)) {
-                Some(Some((bps, max))) => mint::fee_for(*bps, *max, amount),
-                _ => 0,
-            };
-            let exit_k = (j + 1).min(fees.len() - 1);
-            let fee_in = fee_at(i + 1, deposited);
-            let allowed = fee_in.saturating_add(fee_at(exit_k, deposited.saturating_sub(fee_in)));
             let mut c = match steps[j].outcome {
                 StepOutcome::Skipped | StepOutcome::NotApplicable => check(
                     InvariantKind::Refundability,
@@ -1019,7 +1174,7 @@ fn refundability_checks(
                         succeeded: false,
                         error: steps[j].transactions.iter().find_map(|t| t.error.clone()),
                     };
-                    invariants::refundability(true, &attempt, deposited, 0, allowed)
+                    invariants::refundability(true, &attempt, deposited, 0, 0)
                 }
                 StepOutcome::Succeeded => {
                     let returned = moved(&snaps[j], &snaps[j + 1], false);
@@ -1028,10 +1183,20 @@ fn refundability_checks(
                         succeeded: true,
                         error: None,
                     };
-                    invariants::refundability(true, &attempt, deposited, returned, allowed)
+                    match (
+                        observed_fee_increase(entry_before, entry_after, slot),
+                        observed_fee_increase(&snaps[j], &snaps[j + 1], slot),
+                    ) {
+                        (Some(fee_in), Some(fee_out)) => invariants::refundability(
+                            true, &attempt, deposited, returned, fee_in.saturating_add(fee_out)
+                        ),
+                        _ => check(InvariantKind::Refundability, None, CheckStatus::Skipped,
+                            "withheld fees decreased during a flow; cannot infer its fee allowance from snapshots".into()),
+                    }
                 }
             };
             c.slot = Some(slot.clone());
+            c.step_index = Some(j);
             out.push(c);
         }
         if !found {
@@ -1046,20 +1211,38 @@ fn refundability_checks(
     out
 }
 
-/// Support policy that applies to a case: the varied slot's, or for a case
-/// without a varied slot, the first slot whose config has extensions (none
-/// for a baseline case).
+fn observed_fee_increase(before: &Snapshot, after: &Snapshot, slot: &str) -> Option<u64> {
+    let withheld = |snapshot: &Snapshot| {
+        snapshot
+            .accounts
+            .iter()
+            .filter(|a| a.slot == slot)
+            .map(|a| a.withheld as i128)
+            .sum::<i128>()
+            + snapshot.mint(slot).map(|m| m.withheld as i128).unwrap_or(0)
+    };
+    u64::try_from(withheld(after) - withheld(before)).ok()
+}
+
+/// A must-reject config in any slot makes rejection the expected behavior.
+/// For one-slot variation, only that slot's must-support promise applies;
+/// support for a neutral collateral slot does not promise support for the
+/// varied extension. Without a varied slot, combine explicit support promises.
 fn support_policy(adapter: &dyn Adapter, case: &Case) -> SupportPolicy {
-    if let Some(slot) = &case.varied_slot {
-        if let Some(config) = case.slots.get(slot) {
-            return adapter.support_policy(slot, config);
-        }
-    }
-    case.slots
+    let policies: Vec<_> = case
+        .slots
         .iter()
-        .find(|(_, c)| !c.is_neutral())
-        .map(|(slot, c)| adapter.support_policy(slot, c))
-        .unwrap_or_default()
+        .map(|(slot, config)| adapter.support_policy(slot, config))
+        .collect();
+    if policies.contains(&SupportPolicy::MustReject) {
+        SupportPolicy::MustReject
+    } else if let Some(slot) = &case.varied_slot {
+        adapter.support_policy(slot, &case.slots[slot])
+    } else if policies.contains(&SupportPolicy::MustSupport) {
+        SupportPolicy::MustSupport
+    } else {
+        SupportPolicy::Unspecified
+    }
 }
 
 /// The token programs LiteSVM 0.10.0 loads by default, for the report's

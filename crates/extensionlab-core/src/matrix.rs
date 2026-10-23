@@ -258,6 +258,14 @@ pub fn expand(matrix: &Matrix, slots: &[String], scenarios: &[Scenario]) -> Resu
     if slots.is_empty() {
         return Err(Error::Adapter("adapter declares no mint slots".into()));
     }
+    let mut declared = BTreeSet::new();
+    for slot in slots {
+        if slot.is_empty() || !declared.insert(slot) {
+            return Err(Error::Adapter(
+                "mint slot names must be non-empty and unique".into(),
+            ));
+        }
+    }
     let mut cases = Vec::new();
     let mut ids = BTreeSet::new();
     for config in &matrix.configs {
@@ -509,6 +517,17 @@ mod tests {
             let m = preset(name).unwrap();
             for c in &m.configs {
                 c.validate().unwrap_or_else(|e| panic!("{name}: {e}"));
+            }
+        }
+    }
+
+    #[test]
+    fn empty_or_duplicate_mint_slot_declarations_are_rejected() {
+        for strategy in [SlotStrategy::OneSlotAtATime, SlotStrategy::AllSlots] {
+            let mut matrix = preset("baseline").unwrap();
+            matrix.strategy = strategy;
+            for slots in [vec![String::new()], vec!["asset".into(), "asset".into()]] {
+                assert!(expand(&matrix, &slots, &default_scenarios(&escrow_flows())).is_err());
             }
         }
     }

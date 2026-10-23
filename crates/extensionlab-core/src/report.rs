@@ -11,17 +11,17 @@ use crate::{
     adapter::SupportPolicy,
     invariants::{CheckStatus, InvariantCheck},
     matrix::{Scenario, SlotStrategy, Step},
-    mint::MintConfig,
+    mint::{MintConfig, TokenProgram},
     Error, Result,
 };
 use serde::{Deserialize, Serialize};
 use solana_pubkey::Pubkey;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 /// Version of the JSON report schema. Bump the minor version for additive
 /// changes and the major version for breaking ones.
-pub const SCHEMA_VERSION: &str = "0.2.0";
+pub const SCHEMA_VERSION: &str = "0.3.0";
 
 /// A full report: one adapter, one matrix, every run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -366,6 +366,141 @@ pub enum FailOn {
 }
 
 impl Report {
+    /// Validate the report envelope before using it as CI evidence.
+    ///
+    /// Read the published 0.1, 0.2 and 0.3 schemas. A newer minor schema must be
+    /// explicitly supported: an older reader cannot know whether newly added
+    /// evidence changes the meaning of a passing result.
+    pub fn validate(&self) -> Result<()> {
+        let version: Vec<_> = self.schema_version.split('.').collect();
+        let numeric = |part: &str| {
+            !part.is_empty()
+                && part.bytes().all(|b| b.is_ascii_digit())
+                && (part.len() == 1 || !part.starts_with('0'))
+        };
+        if version.len() != 3
+            || !version.iter().all(|part| numeric(part))
+            || version[0] != "0"
+            || !matches!(version[1], "1" | "2" | "3")
+        {
+            return Err(Error::Adapter(format!(
+                "report schema {} is not supported by {}",
+                self.schema_version, SCHEMA_VERSION
+            )));
+        }
+        if self.matrix.cases != self.runs.len() || self.summary != Summary::of(&self.runs) {
+            return Err(Error::Adapter("report counts do not match its runs".into()));
+        }
+        let mut ids = BTreeSet::new();
+        for run in &self.runs {
+            if !ids.insert(run.id.as_str()) {
+                return Err(Error::Adapter(format!("duplicate run id `{}`", run.id)));
+            }
+            let baseline = !run.slots.is_empty()
+                && run
+                    .slots
+                    .values()
+                    .all(|config| config.program == TokenProgram::SplToken && config.is_neutral());
+            if version[1] != "1" && run.baseline != baseline {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has a baseline flag inconsistent with its mint slots",
+                    run.id
+                )));
+            }
+            if run.steps.len() != run.scenario.steps.len()
+                || run.steps.iter().zip(&run.scenario.steps).enumerate().any(
+                    |(index, (record, expected))| record.index != index || &record.step != expected,
+                )
+            {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has missing or inconsistent scenario step records",
+                    run.id
+                )));
+            }
+            if run.invariants.iter().any(|check| {
+                check
+                    .step_index
+                    .is_some_and(|index| index >= run.steps.len())
+            }) {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has an invariant outside its scenario steps",
+                    run.id
+                )));
+            }
+            if matches!(
+                run.status,
+                RunStatus::Pass | RunStatus::Rejected | RunStatus::NotApplicable
+            ) && (run.harness_error.is_some() || run.violations().next().is_some())
+            {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has a non-failing status but explicit failure evidence",
+                    run.id
+                )));
+            }
+            if matches!(
+                run.status,
+                RunStatus::Pass | RunStatus::Rejected | RunStatus::NotApplicable
+            ) && run
+                .balances
+                .iter()
+                .chain(run.invariants.iter().flat_map(|check| &check.balance_rows))
+                .any(|row| {
+                    row.expected_after
+                        .is_some_and(|expected| expected != row.actual_after)
+                })
+            {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has a non-failing status but mismatched balance evidence",
+                    run.id
+                )));
+            }
+            if run.status != RunStatus::Error
+                && run.steps.iter().any(|step| match step.outcome {
+                    StepOutcome::Succeeded => {
+                        step.transactions.iter().any(|tx| tx.error.is_some())
+                            || (matches!(step.step, Step::Flow { .. })
+                                && step.transactions.is_empty())
+                    }
+                    StepOutcome::Failed => !step.transactions.iter().any(|tx| tx.error.is_some()),
+                    StepOutcome::Skipped | StepOutcome::NotApplicable => {
+                        !step.transactions.is_empty()
+                    }
+                })
+            {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has step outcomes inconsistent with its transactions",
+                    run.id
+                )));
+            }
+            if matches!(run.status, RunStatus::Rejected | RunStatus::NotApplicable)
+                && classify(&run.steps, &run.invariants, SupportPolicy::Unspecified) != run.status
+            {
+                return Err(Error::Adapter(format!(
+                    "run `{}` has a rejection or applicability status inconsistent with its evidence",
+                    run.id
+                )));
+            }
+            if run.status == RunStatus::Pass
+                && (!run
+                    .steps
+                    .iter()
+                    .any(|step| matches!(step.step, Step::Flow { .. }))
+                    || run.steps.iter().any(|step| {
+                        step.outcome != StepOutcome::Succeeded
+                            || step.transactions.iter().any(|tx| tx.error.is_some())
+                            || (matches!(step.step, Step::Flow { .. })
+                                && step.transactions.is_empty())
+                    }))
+            {
+                return Err(Error::Adapter(format!(
+                    "passing run `{}` contains unsuccessful or unexecuted steps",
+                    run.id
+                )));
+            }
+        }
+        Ok(())
+    }
+
     /// Assemble a report and compute its summary.
     pub fn new(
         environment: Environment,
@@ -395,10 +530,13 @@ impl Report {
     /// Exit code for CI, in priority order: [`EXIT_BASELINE`],
     /// [`EXIT_HARNESS`], [`EXIT_FAILURES`], [`EXIT_OK`].
     pub fn exit_code(&self, fail_on: FailOn) -> u8 {
+        if self.validate().is_err() {
+            return EXIT_HARNESS;
+        }
         if self
             .runs
             .iter()
-            .any(|r| r.baseline && r.status == RunStatus::Fail)
+            .any(|r| r.baseline && matches!(r.status, RunStatus::Fail | RunStatus::Rejected))
         {
             return EXIT_BASELINE;
         }
@@ -437,16 +575,10 @@ impl Report {
         Ok(serde_json::to_string_pretty(self)?)
     }
 
-    /// Parse JSON. Rejects reports whose major schema version differs.
+    /// Parse JSON and reject unsupported schemas or inconsistent evidence counts.
     pub fn from_json(text: &str) -> Result<Self> {
         let report: Report = serde_json::from_str(text)?;
-        let major = |v: &str| v.split('.').next().unwrap_or("").to_string();
-        if major(&report.schema_version) != major(SCHEMA_VERSION) {
-            return Err(Error::Adapter(format!(
-                "report schema {} is not compatible with {}",
-                report.schema_version, SCHEMA_VERSION
-            )));
-        }
+        report.validate()?;
         Ok(report)
     }
 }
@@ -506,7 +638,7 @@ pub fn baseline_note(r: &Report) -> String {
     let baseline: Vec<&RunResult> = r.runs.iter().filter(|x| x.baseline).collect();
     let failed: Vec<String> = baseline
         .iter()
-        .filter(|x| x.status == RunStatus::Fail)
+        .filter(|x| matches!(x.status, RunStatus::Fail | RunStatus::Rejected))
         .map(|x| format!("`{}`", x.id))
         .collect();
     if failed.is_empty() {
@@ -678,7 +810,7 @@ pub fn render_markdown(r: &Report) -> String {
         if !run.invariants.is_empty() {
             let _ = writeln!(
                 o,
-                "\n**Invariants**\n\n| Invariant | Slot | Status | Detail |\n|---|---|---|---|"
+                "\n**Invariants**\n\n| Invariant | Slot | Step | Status | Detail |\n|---|---|---|---|---|"
             );
             for c in &run.invariants {
                 let name = serde_json::to_value(c.invariant)
@@ -692,9 +824,12 @@ pub fn render_markdown(r: &Report) -> String {
                 };
                 let _ = writeln!(
                     o,
-                    "| {} | {} | {} | {} |",
+                    "| {} | {} | {} | {} | {} |",
                     name,
                     c.slot.as_deref().unwrap_or("-"),
+                    c.step_index
+                        .map(|index| (index + 1).to_string())
+                        .unwrap_or_else(|| "whole run".into()),
                     status,
                     cell(&c.detail)
                 );
@@ -705,8 +840,8 @@ pub fn render_markdown(r: &Report) -> String {
 }
 
 fn short_sig(sig: &str) -> String {
-    if sig.len() > 12 {
-        format!("{}…", &sig[..12])
+    if sig.chars().count() > 12 {
+        format!("{}…", sig.chars().take(12).collect::<String>())
     } else {
         sig.to_string()
     }
@@ -746,10 +881,35 @@ mod tests {
 
     fn violated() -> InvariantCheck {
         InvariantCheck {
+            step_index: None,
+            balance_rows: Vec::new(),
             invariant: InvariantKind::Refundability,
             slot: None,
             status: CheckStatus::Violated,
             detail: String::new(),
+        }
+    }
+
+    fn make_clean_rejection(run: &mut RunResult) {
+        run.status = RunStatus::Rejected;
+        run.harness_error = None;
+        run.invariants.retain(|check| !check.is_violated());
+        for (index, record) in run.steps.iter_mut().enumerate() {
+            record.outcome = if index == 0 {
+                StepOutcome::Failed
+            } else {
+                StepOutcome::Skipped
+            };
+            record.transactions = if index == 0 {
+                vec![tx(Some("InstructionError(0, Custom(1))"))]
+            } else {
+                Vec::new()
+            };
+        }
+        for row in &mut run.balances {
+            row.expected_after = Some(row.before);
+            row.actual_after = row.before;
+            row.withheld_after = 0;
         }
     }
 
@@ -849,7 +1009,7 @@ mod tests {
     #[test]
     fn example_report_parses_and_matches_its_summary() {
         let r = Report::from_json(EXAMPLE).expect("example report must match the types");
-        assert_eq!(r.schema_version, SCHEMA_VERSION);
+        assert_eq!(r.schema_version, "0.2.0");
         assert_eq!(r.summary, Summary::of(&r.runs));
         assert_eq!(r.matrix.cases, r.runs.len());
         // Re-serializing and parsing again is lossless.
@@ -863,6 +1023,194 @@ mod tests {
             Report::from_json(&old).is_ok(),
             "older reports remain readable"
         );
+        let mut current = r;
+        current.schema_version = SCHEMA_VERSION.into();
+        assert_eq!(
+            Report::from_json(&current.to_json().unwrap()).unwrap(),
+            current
+        );
+    }
+
+    #[test]
+    fn inconsistent_or_ambiguous_reports_cannot_be_used_as_ci_evidence() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        let mut wrong_summary = original.clone();
+        wrong_summary.summary.fail = 0;
+        let mut incomplete = original.clone();
+        incomplete.runs.retain(|run| run.status == RunStatus::Pass);
+        let mut duplicate = original.clone();
+        duplicate.runs.push(duplicate.runs[0].clone());
+        duplicate.matrix.cases = duplicate.runs.len();
+        duplicate.summary = Summary::of(&duplicate.runs);
+        for report in [wrong_summary, incomplete, duplicate] {
+            assert!(Report::from_json(&report.to_json().unwrap()).is_err());
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+        }
+    }
+
+    #[test]
+    fn unsupported_or_malformed_schema_versions_fail_closed() {
+        let mut report = Report::from_json(EXAMPLE).unwrap();
+        for version in ["0", "0.foo.0", "0.02.0", "0.3.0.extra", "0.4.0", "1.0.0"] {
+            report.schema_version = version.into();
+            assert!(
+                Report::from_json(&report.to_json().unwrap()).is_err(),
+                "{version}"
+            );
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS, "{version}");
+        }
+    }
+
+    #[test]
+    fn explicit_failure_evidence_cannot_be_overridden_by_a_non_failing_status() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        let mut flipped = original.clone();
+        for run in &mut flipped.runs {
+            if run.status == RunStatus::Fail {
+                run.status = RunStatus::Pass;
+            }
+        }
+        flipped.summary = Summary::of(&flipped.runs);
+        assert_eq!(flipped.summary.fail, 0);
+        assert_eq!(flipped.exit_code(FailOn::Fail), EXIT_HARNESS);
+        assert!(Report::from_json(&flipped.to_json().unwrap()).is_err());
+
+        for status in [
+            RunStatus::Pass,
+            RunStatus::Rejected,
+            RunStatus::NotApplicable,
+        ] {
+            for harness_error in [false, true] {
+                let mut report = original.clone();
+                report.runs[0].status = status;
+                if harness_error {
+                    report.runs[0].harness_error = Some("incomplete execution".into());
+                } else {
+                    report.runs[0].invariants.push(violated());
+                }
+                report.summary = Summary::of(&report.runs);
+                assert!(report.validate().is_err(), "{status:?}");
+                assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+            }
+        }
+    }
+
+    #[test]
+    fn passing_status_requires_successful_steps_and_transactions() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        for outcome in [
+            StepOutcome::Failed,
+            StepOutcome::Skipped,
+            StepOutcome::NotApplicable,
+        ] {
+            let mut report = original.clone();
+            report.runs[0].steps[0].outcome = outcome;
+            assert!(report.validate().is_err(), "{outcome:?}");
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+        }
+        let mut report = original;
+        report.runs[0].steps[0].transactions[0].error =
+            Some("InstructionError(0, Custom(1))".into());
+        assert!(report.validate().is_err());
+        assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+    }
+
+    #[test]
+    fn complete_ordered_step_evidence_is_required_for_reports() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        let mut missing = original.clone();
+        missing.runs[0].steps.pop();
+        let mut wrong_index = original.clone();
+        wrong_index.runs[0].steps[0].index = 5;
+        let mut wrong_step = original.clone();
+        wrong_step.runs[0].steps[0].step = Step::flow("different_flow");
+        let mut no_transactions = original.clone();
+        no_transactions.runs[0].steps[0].transactions.clear();
+        let mut no_flows = original.clone();
+        no_flows.runs[0].scenario.steps.clear();
+        no_flows.runs[0].steps.clear();
+        no_flows.runs[0].invariants.clear();
+        let mut outside_step = original;
+        outside_step.runs[0].invariants[0].step_index = Some(outside_step.runs[0].steps.len());
+        for report in [
+            missing,
+            wrong_index,
+            wrong_step,
+            no_transactions,
+            no_flows,
+            outside_step,
+        ] {
+            assert!(Report::from_json(&report.to_json().unwrap()).is_err());
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+        }
+    }
+
+    #[test]
+    fn rejection_and_applicability_cannot_hide_committed_or_failed_transactions() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        for status in [RunStatus::Rejected, RunStatus::NotApplicable] {
+            let mut report = original.clone();
+            for run in &mut report.runs {
+                if run.status == RunStatus::Fail {
+                    run.status = status;
+                    run.invariants.clear();
+                }
+            }
+            report.summary = Summary::of(&report.runs);
+            assert_eq!(report.summary.fail, 0);
+            assert!(report.validate().is_err(), "{status:?}");
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+        }
+        let mut partial_error = original;
+        let run = &mut partial_error.runs[1];
+        run.status = RunStatus::Error;
+        run.harness_error = Some("signing the next transaction failed".into());
+        run.invariants.clear();
+        run.steps[0].outcome = StepOutcome::Failed;
+        run.steps[1].outcome = StepOutcome::Skipped;
+        run.steps[1].transactions.clear();
+        partial_error.summary = Summary::of(&partial_error.runs);
+        assert!(partial_error.validate().is_ok());
+        assert_eq!(partial_error.exit_code(FailOn::Fail), EXIT_HARNESS);
+    }
+
+    #[test]
+    fn modern_baseline_flags_must_match_the_mint_slots() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        for schema in ["0.2.0", "0.3.0"] {
+            let mut report = original.clone();
+            report.schema_version = schema.into();
+            report.runs[0].baseline = false;
+            assert!(report.validate().is_err());
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+        }
+        let mut legacy = original;
+        legacy.schema_version = "0.1.0".into();
+        legacy.runs[1].baseline = true;
+        assert!(Report::from_json(&legacy.to_json().unwrap()).is_ok());
+    }
+
+    #[test]
+    fn non_failing_statuses_require_matching_balance_evidence() {
+        let original = Report::from_json(EXAMPLE).unwrap();
+        for embedded in [false, true] {
+            let mut report = original.clone();
+            let run = &mut report.runs[0];
+            let index = run
+                .balances
+                .iter()
+                .position(|row| row.expected_after.is_some())
+                .unwrap();
+            let mut row = run.balances[index].clone();
+            row.actual_after = row.expected_after.unwrap() + 1;
+            if embedded {
+                run.invariants[0].balance_rows.push(row);
+            } else {
+                run.balances[index] = row;
+            }
+            assert!(report.validate().is_err());
+            assert_eq!(report.exit_code(FailOn::Fail), EXIT_HARNESS);
+        }
     }
 
     #[test]
@@ -885,21 +1233,48 @@ mod tests {
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_FAILURES);
         let baseline = r.runs.iter().position(|x| x.baseline).unwrap();
         r.runs[baseline].status = RunStatus::Fail;
+        r.summary = Summary::of(&r.runs);
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_BASELINE);
-        r.runs[baseline].status = RunStatus::Pass;
+        make_clean_rejection(&mut r.runs[baseline]);
+        r.summary = Summary::of(&r.runs);
+        assert_eq!(r.exit_code(FailOn::Fail), EXIT_BASELINE);
+        assert_eq!(r.exit_code(FailOn::Rejected), EXIT_BASELINE);
+        assert!(baseline_note(&r).contains("1 failed"));
+        r.runs[baseline] = Report::from_json(EXAMPLE).unwrap().runs[baseline].clone();
+        r.summary = Summary::of(&r.runs);
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_FAILURES);
         for run in &mut r.runs {
             if run.status == RunStatus::Fail {
-                run.status = RunStatus::Rejected;
+                make_clean_rejection(run);
             }
         }
+        r.summary = Summary::of(&r.runs);
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_OK);
         assert_eq!(r.exit_code(FailOn::Rejected), EXIT_FAILURES);
         r.runs[0].status = RunStatus::Error;
+        r.summary = Summary::of(&r.runs);
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_HARNESS);
         for run in &mut r.runs {
             run.status = RunStatus::NotApplicable;
+            run.invariants.clear();
+            run.harness_error = None;
+            for record in &mut run.steps {
+                record.outcome = StepOutcome::Succeeded;
+                record.transactions = vec![tx(None)];
+            }
+            let issuer = Step::Issuer {
+                action: crate::matrix::IssuerAction::DrainCustody,
+            };
+            let index = run.steps.len();
+            run.scenario.steps.push(issuer.clone());
+            run.steps.push(StepRecord {
+                index,
+                step: issuer,
+                outcome: StepOutcome::NotApplicable,
+                transactions: Vec::new(),
+            });
         }
+        r.summary = Summary::of(&r.runs);
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_HARNESS);
         r.runs.clear();
         assert_eq!(r.exit_code(FailOn::Fail), EXIT_HARNESS);
@@ -907,7 +1282,8 @@ mod tests {
 
     #[test]
     fn markdown_lists_failures_with_logs() {
-        let r = Report::from_json(EXAMPLE).unwrap();
+        let mut r = Report::from_json(EXAMPLE).unwrap();
+        r.runs[1].invariants[0].step_index = Some(0);
         let md = render_markdown(&r);
         assert!(md.contains("# ExtensionLab report: `escrow` x `default`"));
         assert!(md.contains("## Failures"));
@@ -916,5 +1292,15 @@ mod tests {
         assert!(md.contains("transfer_fee 200 bps, uncapped"));
         assert!(md.contains("```text"));
         assert!(md.contains("| vault | mint_a |"));
+        assert!(md.contains("| Invariant | Slot | Step | Status | Detail |"));
+        assert!(md.contains("| conservation | mint_a | 1 |"));
+    }
+
+    #[test]
+    fn markdown_handles_non_ascii_signature_text_without_panicking() {
+        let mut report = Report::from_json(EXAMPLE).unwrap();
+        report.runs[1].steps[0].transactions[0].signature = "a😀😀😀".into();
+        assert!(render_markdown(&report).contains("a😀😀😀"));
+        assert_eq!(short_sig(&"😀".repeat(13)), format!("{}…", "😀".repeat(12)));
     }
 }

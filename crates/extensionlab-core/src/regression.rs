@@ -79,7 +79,18 @@ fn comment_line(text: &str) -> String {
 
 /// Render the regression test for run `run_id` of `report`.
 pub fn render(report: &Report, run_id: &str, opts: &Options) -> Result<String> {
+    report.validate()?;
     let run = report.run(run_id)?;
+    if run.status == RunStatus::Error || run.harness_error.is_some() {
+        return Err(crate::Error::Adapter(format!(
+            "cannot export `{run_id}`: fix its harness error and run the case again"
+        )));
+    }
+    if run.status == RunStatus::NotApplicable {
+        return Err(crate::Error::Adapter(format!(
+            "cannot export `{run_id}`: its issuer action was not exercised"
+        )));
+    }
     let case = Case {
         id: run.id.clone(),
         slots: run.slots.clone(),
@@ -94,10 +105,11 @@ pub fn render(report: &Report, run_id: &str, opts: &Options) -> Result<String> {
         ""
     };
     let adapter_expr = opts.adapter_expr.clone().unwrap_or_else(|| {
-        format!(
-            "todo!(\"construct the `{}` adapter, e.g. Box::new(my_crate::MyAdapter::new())\")",
+        let message = format!(
+            "construct the `{}` adapter, e.g. Box::new(my_crate::MyAdapter::new())",
             report.adapter.name
-        )
+        );
+        format!("todo!(\"{{}}\", {message:?})")
     });
     let (assert_status, intent) = match opts.expectation {
         Expectation::Pass => (RunStatus::Pass, "fails until the incompatibility is fixed"),
@@ -247,7 +259,7 @@ mod tests {
         assert!(src.contains("fn extensionlab_escrow_transfer_fee_200bps_mint_a_make_take()"));
         assert!(src.contains("#[allow(unreachable_code"));
         assert!(src.contains("RunStatus::Pass"));
-        assert!(src.contains("todo!(\"construct the `escrow` adapter"));
+        assert!(src.contains("todo!(\"{}\", \"construct the `escrow` adapter"));
 
         // Pull the embedded JSON back out and parse it as a Case.
         let start = src.find("r#\"").unwrap() + 3;
@@ -274,5 +286,52 @@ mod tests {
         let report =
             Report::from_json(include_str!("../tests/fixtures/example_report.json")).unwrap();
         assert!(render(&report, "nope", &Options::default()).is_err());
+    }
+
+    #[test]
+    fn harness_errors_and_unexercised_cases_are_not_exported_as_regressions() {
+        let mut report =
+            Report::from_json(include_str!("../tests/fixtures/example_report.json")).unwrap();
+        let id = report.runs[0].id.clone();
+        for status in [RunStatus::Error, RunStatus::NotApplicable] {
+            report.runs[0].status = status;
+            if status == RunStatus::NotApplicable {
+                let step = crate::matrix::Step::Issuer {
+                    action: crate::matrix::IssuerAction::DrainCustody,
+                };
+                let index = report.runs[0].steps.len();
+                report.runs[0].scenario.steps.push(step.clone());
+                report.runs[0].steps.push(crate::report::StepRecord {
+                    index,
+                    step,
+                    outcome: crate::report::StepOutcome::NotApplicable,
+                    transactions: Vec::new(),
+                });
+            }
+            report.summary = crate::report::Summary::of(&report.runs);
+            assert!(report.validate().is_ok());
+            for expectation in [Expectation::Pass, Expectation::Observed] {
+                assert!(render(
+                    &report,
+                    &id,
+                    &Options {
+                        expectation,
+                        ..Default::default()
+                    }
+                )
+                .is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn adapter_names_are_rust_string_data_in_the_unfinished_constructor() {
+        let mut report =
+            Report::from_json(include_str!("../tests/fixtures/example_report.json")).unwrap();
+        report.adapter.name = "quoted\"{adapter}\nname".into();
+        let source = render(&report, &report.runs[0].id, &Options::default()).unwrap();
+        assert!(source.contains(
+            r#"todo!("{}", "construct the `quoted\"{adapter}\nname` adapter, e.g. Box::new(my_crate::MyAdapter::new())")"#
+        ));
     }
 }

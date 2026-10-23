@@ -653,6 +653,7 @@ pub fn read_token_account(svm: &LiteSVM, address: &Pubkey) -> Result<Option<Toke
     let Some(account) = svm.get_account(address) else {
         return Ok(None);
     };
+    check_token_program_owner(address, &account.owner, account.executable)?;
     let read_err = |reason: String| Error::AccountRead {
         address: address.to_string(),
         reason,
@@ -693,6 +694,7 @@ pub fn read_mint(svm: &LiteSVM, address: &Pubkey) -> Result<MintView> {
     let account = svm
         .get_account(address)
         .ok_or_else(|| read_err("account does not exist".into()))?;
+    check_token_program_owner(address, &account.owner, account.executable)?;
     let state = StateWithExtensions::<MintState>::unpack(&account.data)
         .map_err(|e| read_err(format!("not a mint: {e}")))?;
     let withheld = state
@@ -731,6 +733,7 @@ pub fn epoch_transfer_fee(svm: &LiteSVM, address: &Pubkey) -> Result<Option<(u16
     let account = svm
         .get_account(address)
         .ok_or_else(|| read_err("account does not exist".into()))?;
+    check_token_program_owner(address, &account.owner, account.executable)?;
     let state = StateWithExtensions::<MintState>::unpack(&account.data)
         .map_err(|e| read_err(format!("not a mint: {e}")))?;
     let Ok(config) = state.get_extension::<TransferFeeConfig>() else {
@@ -742,4 +745,16 @@ pub fn epoch_transfer_fee(svm: &LiteSVM, address: &Pubkey) -> Result<Option<(u16
         u16::from(fee.transfer_fee_basis_points),
         u64::from(fee.maximum_fee),
     )))
+}
+
+fn check_token_program_owner(address: &Pubkey, owner: &Pubkey, executable: bool) -> Result<()> {
+    if executable || ![TokenProgram::SplToken.id(), TokenProgram::Token2022.id()].contains(owner) {
+        return Err(Error::AccountRead {
+            address: address.to_string(),
+            reason: format!(
+                "expected a non-executable SPL Token or Token-2022 account, owned by {owner}"
+            ),
+        });
+    }
+    Ok(())
 }
